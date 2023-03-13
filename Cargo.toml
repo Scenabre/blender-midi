@@ -3,6 +3,11 @@ name = "blender-midi"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
+rainout = { git = "https://github.com/MeadowlarkDAW/rainout.git", features = ["midi","jack-linux"]}
+log = "*"
+simple_logger = "2.1"
+
+# [dev-dependencies]
+# log = "*"
+# simple_logger = "2.1"
