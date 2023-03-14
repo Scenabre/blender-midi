@@ -96,7 +96,11 @@ pub struct MidiProcessor {
 //     Param2,
 // }
 
-pub fn process_midi_mesg(event: &[u8]) -> u8 {
+const CHROM_RANGE: [&str; 12] = ["A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#"];
+
+pub type MidiResult = Result<u8, &'static str>;
+
+pub fn process_midi_mesg(event: &[u8]) -> MidiResult {
 
 // Command  Meaning      # parameters  param 1      param 2
 // 0x80      Note-off    2              key          velocity
@@ -110,16 +114,52 @@ pub fn process_midi_mesg(event: &[u8]) -> u8 {
     
     let cmd: u8 = event[0];
 
-    match cmd {
+    if cmd == 0xFF {
+        return Err("User press PANIC on midi device, shutdown client !");
+    }
+
+    fn get_note_name(note: u8) -> &'static str {
+        if note < 21 || note > 108 {
+            log::warn!("Note not in chromatic range !");
+            return "";
+        }
+
+        let note_idx: usize = ((note-21)%12).into();
+
+       return CHROM_RANGE[note_idx]; 
+    }
+
+    fn get_octave(note: u8) -> u8 {
+        if note < 21 || note > 108 {
+            log::warn!("Note not in chromatic range !");
+            return 0;
+        }
+        return (note/12)-1;
+
+    }
+
+    fn get_channel(cmd: u8) -> u8 {
+        return ((cmd << 4) >> 4)+1;
+    }
+
+    fn convert_half(vel: u8) -> f32 {
+        return vel as f32 / 127.0;
+    }
+
+    println!("CHANNEL : {}", get_channel(cmd));
+
+    let clean_cmd = (cmd >> 4) << 4;
+
+    match clean_cmd {
         0xA0|0xC0|0xE0 => println!("Command not used in Blender Midi"),
-        0x80 => println!("Note off : {:?} (vel : {:?})", event[1], event[2]),
-        0x90 => println!("Note on : {:?} (vel : {:?})", event[1], event[2]),
-        0xD0 => println!("Channel press : {:?}", event[1]),
-        0xFF => panic!("User press PANIC on keyboard, shutdown client !"),
+        0xB0 => println!("Modulation : {}", convert_half(event[2])),
+        0x80 => println!("Note off : {}{} (vel : {})", get_note_name(event[1]), get_octave(event[1]), convert_half(event[2])),
+        0x90 => println!("Note on : {}{} (vel : {})", get_note_name(event[1]),get_octave(event[1]), convert_half(event[2])),
+        0xD0 => println!("Channel press : {}", event[1]),
         _ => println!("Unkown event : {:04X?}", event),
     }
 
-    return 0;
+    Ok(0)
 }
 
 impl ProcessHandler for MidiProcessor {
@@ -142,11 +182,15 @@ impl ProcessHandler for MidiProcessor {
         if events.len() != 0 {
             if events.len() > 1 {
                 for event in events.iter() {
-                    process_midi_mesg(event.data());
+                    if let Err(e) = process_midi_mesg(event.data()) {
+                        panic!("{}",e);
+                    }
                 }
             } else {
                 let event: RawMidi = events[0];
-                process_midi_mesg(event.data());
+                if let Err(e) = process_midi_mesg(event.data()) {
+                    panic!("{}",e);
+                }
             };
         };
     }
