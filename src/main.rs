@@ -1,47 +1,33 @@
-use rainout::{MidiControlScheme, ProcessInfo, ProcessHandler, StreamInfo, Backend, RainoutConfig, RunOptions, AutoOption, MidiPortConfig, MidiConfig, RawMidi, AudioDeviceConfig};
+use rainout::{MidiControlScheme, ProcessInfo, ProcessHandler, StreamInfo, Backend, RainoutConfig, RunOptions, AutoOption, MidiPortConfig, MidiConfig, RawMidi, AudioDeviceConfig, DeviceID};
 use std::string::String;
 use simple_logger::SimpleLogger;
 
 fn main() {
     SimpleLogger::new().with_level(log::LevelFilter::Debug).init().unwrap();
-
-    if let Ok(dev) = rainout::enumerate_midi_backend(Backend::Jack) {
-        log::debug!("Midi Devices : {:?}",dev.in_ports);
-    } else {
-        log::error!("Unable to fetch midi devices !");
-    };
-
-
-    let audio_device_id = rainout::DeviceID {
-        name: String::from("HDA Intel PCH, ALC3246 Analog"),
-        identifier: Some(String::from("hw:0,0")),
-    };
-
-    let midi_device_id = rainout::DeviceID {
-        name: String::from("jack-keyboard:midi_out"),
-        // name: String::from("a2j:Midi Through [14] (capture): [0] Midi Through Port-0"),
-        identifier: None,
-    };
-
-    let audio_device_conf = AudioDeviceConfig::Single(audio_device_id);
-
-    // let vec_in_ports: Vec<String> = vec![String::from("system:capture_1"),String::from("system:capture_2")];
+   
     let audio_in_ports: Vec<String> = vec![];
-    // let vec_out_ports: Vec<String> = vec![String::from("system:playback_1"), String::from("system:playback_2")];
     let audio_out_ports: Vec<String> = vec![];
 
-    let jack_ports = AudioDeviceConfig::Jack {
+    let audio_device_conf = AudioDeviceConfig::Jack {
         in_ports: audio_in_ports,
         out_ports: audio_out_ports,
     };
 
+    let midi_devices = rainout::enumerate_midi_backend(Backend::Jack).unwrap();
+    let default_midi_in_dev = midi_devices.in_ports[0].id.clone();
+    let default_midi_out_dev = midi_devices.out_ports[0].id.clone();
+
     let midi_in_ports: Vec<MidiPortConfig> = vec![ MidiPortConfig {
-        device_id: midi_device_id,
+        device_id: default_midi_in_dev,
         port_index: 0,
         control_scheme: MidiControlScheme::default(),
     }];
 
-    let midi_out_ports: Vec<MidiPortConfig> = vec![];
+    let midi_out_ports: Vec<MidiPortConfig> = vec![ MidiPortConfig {
+        device_id: default_midi_out_dev,
+        port_index: 0,
+        control_scheme: MidiControlScheme::default(),
+    }];
 
     let midi_conf = MidiConfig {
         midi_backend: AutoOption::Use(Backend::Jack),
@@ -78,23 +64,10 @@ fn main() {
     let _ = stream_handle;
 }
 
-
 pub struct MidiProcessor {
     mesg: String,
     test: bool,
 }
-
-// pub struct MidiMesg {
-//     cmd: u8,
-//     param1: u8,
-//     param2: Option<u8>,
-// }
-
-// pub enum MidiMesg {
-//     Cmd,
-//     Param1,
-//     Param2,
-// }
 
 const CHROM_RANGE: [&str; 12] = ["A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#"];
 
@@ -177,20 +150,23 @@ impl ProcessHandler for MidiProcessor {
 
     fn process<'a>(&mut self, proc_info: ProcessInfo<'a>) {
 
-        let events = proc_info.midi_inputs[0].events();
+        if proc_info.midi_inputs.len() != 0 {
 
-        if events.len() != 0 {
-            if events.len() > 1 {
-                for event in events.iter() {
+            let events = proc_info.midi_inputs[0].events();
+
+            if events.len() != 0 {
+                if events.len() > 1 {
+                    for event in events.iter() {
+                        if let Err(e) = process_midi_mesg(event.data()) {
+                            panic!("{}",e);
+                        }
+                    }
+                } else {
+                    let event: RawMidi = events[0];
                     if let Err(e) = process_midi_mesg(event.data()) {
                         panic!("{}",e);
                     }
-                }
-            } else {
-                let event: RawMidi = events[0];
-                if let Err(e) = process_midi_mesg(event.data()) {
-                    panic!("{}",e);
-                }
+                };
             };
         };
     }
