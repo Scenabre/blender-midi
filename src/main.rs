@@ -1,4 +1,4 @@
-use rainout::{MidiControlScheme, ProcessInfo, ProcessHandler, StreamInfo, Backend, RainoutConfig, RunOptions, AutoOption, MidiPortConfig, MidiConfig, RawMidi, AudioDeviceConfig, DeviceID};
+use rainout::{MidiControlScheme, ProcessInfo, ProcessHandler, StreamInfo, Backend, RainoutConfig, RunOptions, AutoOption, MidiPortConfig, MidiConfig, RawMidi, AudioDeviceConfig};
 use std::string::String;
 use simple_logger::SimpleLogger;
 
@@ -14,6 +14,11 @@ fn main() {
     };
 
     let midi_devices = rainout::enumerate_midi_backend(Backend::Jack).unwrap();
+
+    if midi_devices.in_ports.len() == 0 || midi_devices.out_ports.len() == 0 {
+        log::error!("No midi device found !");
+    }
+
     let default_midi_in_dev = midi_devices.in_ports[0].id.clone();
     let default_midi_out_dev = midi_devices.out_ports[0].id.clone();
 
@@ -75,17 +80,18 @@ pub type MidiResult = Result<u8, &'static str>;
 
 pub fn process_midi_mesg(event: &[u8]) -> MidiResult {
 
+// CHANNEL VOICE MESG
 // Command  Meaning      # parameters  param 1      param 2
 // 0x80      Note-off    2              key          velocity
 // 0x90      Note-on     2              key          velocity
 // 0xA0      Aftertouch  2              key          touch
-// 0xB0      Cont CTRL   2              ctrl #       ctrl value
-// 0xC0      Patch chg   2              instr # 	
+// 0xB0      Cont CTRL   2              ctrl #       ctrl value (0-119)
+// 0xC0      Prog chg    2              instr # 	
 // 0xD0      Chan Press  1              pressure     X
 // 0xE0      Pitch bend  2              lsb (7 bits) msb (7 bits)
 // 0xF0      (non-musical commands) 			
     
-    let cmd: u8 = event[0];
+    let cmd = event[0];
 
     if cmd == 0xFF {
         return Err("User press PANIC on midi device, shutdown client !");
@@ -119,16 +125,30 @@ pub fn process_midi_mesg(event: &[u8]) -> MidiResult {
         return vel as f32 / 127.0;
     }
 
+    fn process_note(cmd: u8, note: u8, vel: u8) {
+        if cmd == 0x80 || vel == 0 {
+            println!("Note off : {}{}", get_note_name(note),get_octave(note));
+            return;
+        }
+
+        println!("Note on : {}{} (vel: {})",get_note_name(note),get_octave(note),convert_half(vel));
+
+    }
+
+    fn process_pitch_bend(pitch: u8) {
+       println!("Pitch bend value : {}",convert_half(pitch)); 
+    }
+
     println!("CHANNEL : {}", get_channel(cmd));
 
     let clean_cmd = (cmd >> 4) << 4;
 
     match clean_cmd {
-        0xA0|0xC0|0xE0 => println!("Command not used in Blender Midi"),
+        0xA0|0xC0 => println!("Command not used in Blender Midi : {:04X?}", cmd),
         0xB0 => println!("Modulation : {}", convert_half(event[2])),
-        0x80 => println!("Note off : {}{} (vel : {})", get_note_name(event[1]), get_octave(event[1]), convert_half(event[2])),
-        0x90 => println!("Note on : {}{} (vel : {})", get_note_name(event[1]),get_octave(event[1]), convert_half(event[2])),
+        0x80|0x90 => process_note(clean_cmd, event[1], event[2]),
         0xD0 => println!("Channel press : {}", event[1]),
+        0xE0 => process_pitch_bend(event[1]),
         _ => println!("Unkown event : {:04X?}", event),
     }
 
@@ -150,25 +170,28 @@ impl ProcessHandler for MidiProcessor {
 
     fn process<'a>(&mut self, proc_info: ProcessInfo<'a>) {
 
-        if proc_info.midi_inputs.len() != 0 {
+        if proc_info.midi_inputs.len() == 0 {
+            return;
+        };
 
-            let events = proc_info.midi_inputs[0].events();
+        let events = proc_info.midi_inputs[0].events();
 
-            if events.len() != 0 {
-                if events.len() > 1 {
-                    for event in events.iter() {
-                        if let Err(e) = process_midi_mesg(event.data()) {
-                            panic!("{}",e);
-                        }
-                    }
-                } else {
-                    let event: RawMidi = events[0];
+        if events.len() != 0 {
+            if events.len() > 1 {
+                for event in events.iter() {
                     if let Err(e) = process_midi_mesg(event.data()) {
                         panic!("{}",e);
                     }
-                };
+                }
+            } else {
+                let event: RawMidi = events[0];
+                if let Err(e) = process_midi_mesg(event.data()) {
+                    panic!("{}",e);
+                }
             };
-        };
+        }; 
+
+        proc_info.midi_outputs[0].clear_and_copy_from(&proc_info.midi_inputs[0]);
     }
 
 }
