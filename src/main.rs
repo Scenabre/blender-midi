@@ -1,8 +1,13 @@
 use rainout::{MidiControlScheme, ProcessInfo, ProcessHandler, StreamInfo, Backend, RainoutConfig, RunOptions, AutoOption, MidiPortConfig, MidiConfig, RawMidi, AudioDeviceConfig};
 use std::string::String;
 use simple_logger::SimpleLogger;
+use clap::{arg, command, value_parser, ArgAction, Command};
 
 fn main() {
+    let args = ""; 
+
+
+
     SimpleLogger::new().with_level(log::LevelFilter::Debug).init().unwrap();
    
     let audio_in_ports: Vec<String> = vec![];
@@ -19,7 +24,7 @@ fn main() {
         log::error!("No midi device found !");
     }
 
-    let default_midi_in_dev = midi_devices.in_ports[0].id.clone();
+    let default_midi_in_dev = midi_devices.in_ports[1].id.clone();
     let default_midi_out_dev = midi_devices.out_ports[0].id.clone();
 
     let midi_in_ports: Vec<MidiPortConfig> = vec![ MidiPortConfig {
@@ -135,21 +140,34 @@ pub fn process_midi_mesg(event: &[u8]) -> MidiResult {
 
     }
 
+    fn process_cc(cc_type: u8, cc_value: u8) {
+        if cc_type < 0x1F {
+            match cc_type {
+                0x01 => println!("Modulation wheel : {}", convert_half(cc_value)),
+                0x05 => println!("Portamento : {}", convert_half(cc_value)),
+                _ =>  println!("CC #{} : {}", cc_type, cc_value),
+            }
+        }
+    }
+
     fn process_pitch_bend(pitch: u8) {
-       println!("Pitch bend value : {}",convert_half(pitch)); 
+        let norm_pitch: f32 = (pitch as f32 - 64.0) / 64.0;
+        println!("Pitch bend value : {}",norm_pitch); 
     }
 
     println!("CHANNEL : {}", get_channel(cmd));
 
     let clean_cmd = (cmd >> 4) << 4;
 
+    println!("Raw MIDI : {:04X?}", event);
+
     match clean_cmd {
         0xA0|0xC0 => println!("Command not used in Blender Midi : {:04X?}", cmd),
-        0xB0 => println!("Modulation : {}", convert_half(event[2])),
+        0xB0 => process_cc(event[1],event[2]),
         0x80|0x90 => process_note(clean_cmd, event[1], event[2]),
         0xD0 => println!("Channel press : {}", event[1]),
-        0xE0 => process_pitch_bend(event[1]),
-        _ => println!("Unkown event : {:04X?}", event),
+        0xE0 => process_pitch_bend(event[2]),
+        _ => log::warn!("Unkown event : {:04X?}", event),
     }
 
     Ok(0)
@@ -191,7 +209,7 @@ impl ProcessHandler for MidiProcessor {
             };
         }; 
 
-        proc_info.midi_outputs[0].clear_and_copy_from(&proc_info.midi_inputs[0]);
+        //proc_info.midi_outputs[0].clear_and_copy_from(&proc_info.midi_inputs[0]);
     }
 
 }
