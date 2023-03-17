@@ -2,8 +2,6 @@
 pub type MidiResult = Result<u8, &'static str>;
 const CHROM_RANGE: [&str; 12] = ["A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#"];
 
-
-
 pub fn process_midi_mesg(event: &[u8]) -> MidiResult {
 
 // CHANNEL VOICE MESG
@@ -61,14 +59,18 @@ pub fn process_midi_mesg(event: &[u8]) -> MidiResult {
 
     }
 
-    fn process_cc(cc_type: u8, cc_value: u8) {
-        if cc_type < 0x1F {
-            match cc_type {
+    fn process_cc(cc_num: u8, cc_value: u8) {
+        if cc_num < 0x1F {
+            match cc_num {
                 0x01 => println!("Modulation wheel : {}", convert_half(cc_value)),
                 0x05 => println!("Portamento : {}", convert_half(cc_value)),
-                _ =>  println!("CC #{} : {}", cc_type, cc_value),
+                _ =>  println!("CC #{} : {}", cc_num, cc_value),
             }
         }
+    }
+
+    fn process_sys(event : &[u8]) {
+        let _cmd = event[0];
     }
 
     fn process_pitch_bend(pitch: (u8,u8)) {
@@ -76,8 +78,6 @@ pub fn process_midi_mesg(event: &[u8]) -> MidiResult {
         let u16_pitch = (msb as u16) << 7 | lsb as u16;
         let norm_pitch = (u16_pitch as f32)/16384.0;
         println!("Pitch bend values : {}", norm_pitch);
-        //let norm_pitch: f32 = (pitch as f32 - 64.0) / 64.0;
-        //println!("Pitch bend value : {}",norm_pitch); 
     }
 
     println!("CHANNEL : {}", get_channel(cmd));
@@ -87,11 +87,13 @@ pub fn process_midi_mesg(event: &[u8]) -> MidiResult {
     println!("Raw MIDI : {:04X?}", event);
 
     match clean_cmd {
-        0xA0|0xC0 => println!("Command not used in Blender Midi : {:04X?}", cmd),
-        0xB0 => process_cc(event[1],event[2]),
         0x80|0x90 => process_note(clean_cmd, event[1], event[2]),
-        0xD0 => println!("Channel press : {}", event[1]),
+        0xA0 => println!("Poly Key Pressure Aftertouch on {}{} : {}", get_note_name(event[1]), get_octave(event[1]), convert_half(event[2])),
+        0xB0 => process_cc(event[1],event[2]),
+        0xC0 => println!("Command not used in Blender Midi : {:04X?}", cmd),
+        0xD0 => println!("Channel Pressure Aftertouch : {}", convert_half(event[1])),
         0xE0 => process_pitch_bend((event[1],event[2])),
+        0xF0 => process_sys(event),
         _ => log::warn!("Unkown event : {:04X?}", event),
     }
 

@@ -33,6 +33,7 @@ fn main() {
 pub struct MidiProcessor {
     mesg: String,
     test: bool,
+    // midi_stack: [RawMidi; 2],
 }
 
 impl ProcessHandler for MidiProcessor {

@@ -30,7 +30,7 @@ pub fn setup_client_params() -> SetupResult {
        return Err(ParamsInitError::MidiDeviceNotFound);
     }
 
-    let default_midi_in_dev = midi_devices.in_ports[0].id.clone();
+    let default_midi_in_dev = midi_devices.in_ports[1].id.clone();
     let default_midi_out_dev = midi_devices.out_ports[0].id.clone();
 
     let midi_in_ports: Vec<MidiPortConfig> = vec![ MidiPortConfig {
