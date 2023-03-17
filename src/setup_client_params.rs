@@ -9,10 +9,10 @@ pub struct AudioParams {
 #[derive(Error, Debug)]
 pub enum ParamsInitError {
     #[error("No midi device found")]
-    MidiDeviceNotFound(String),
+    MidiDeviceNotFound,
 }
 
-pub fn setup_client_params() -> Result<AudioParams, &'static str> {
+pub fn setup_client_params() -> Result<AudioParams, ParamsInitError> {
 
     let audio_in_ports: Vec<String> = vec![];
     let audio_out_ports: Vec<String> = vec![];
@@ -25,7 +25,7 @@ pub fn setup_client_params() -> Result<AudioParams, &'static str> {
     let midi_devices = rainout::enumerate_midi_backend(Backend::Jack).unwrap();
 
     if midi_devices.in_ports.len() == 0 || midi_devices.out_ports.len() == 0 {
-       return Err("No midi device found !");
+       return Err(ParamsInitError::MidiDeviceNotFound);
     }
 
     let default_midi_in_dev = midi_devices.in_ports[0].id.clone();
