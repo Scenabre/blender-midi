@@ -12,7 +12,9 @@ pub enum ParamsInitError {
     MidiDeviceNotFound,
 }
 
-pub fn setup_client_params() -> Result<AudioParams, ParamsInitError> {
+pub type SetupResult = Result<AudioParams, ParamsInitError>;
+
+pub fn setup_client_params() -> SetupResult {
 
     let audio_in_ports: Vec<String> = vec![];
     let audio_out_ports: Vec<String> = vec![];
