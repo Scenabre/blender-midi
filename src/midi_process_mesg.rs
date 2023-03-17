@@ -2,6 +2,8 @@
 pub type MidiResult = Result<u8, &'static str>;
 const CHROM_RANGE: [&str; 12] = ["A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#"];
 
+
+
 pub fn process_midi_mesg(event: &[u8]) -> MidiResult {
 
 // CHANNEL VOICE MESG
@@ -69,9 +71,13 @@ pub fn process_midi_mesg(event: &[u8]) -> MidiResult {
         }
     }
 
-    fn process_pitch_bend(pitch: u8) {
-        let norm_pitch: f32 = (pitch as f32 - 64.0) / 64.0;
-        println!("Pitch bend value : {}",norm_pitch); 
+    fn process_pitch_bend(pitch: (u8,u8)) {
+        let (lsb,msb) = pitch;
+        let u16_pitch = (msb as u16) << 7 | lsb as u16;
+        let norm_pitch = (u16_pitch as f32)/16384.0;
+        println!("Pitch bend values : {}", norm_pitch);
+        //let norm_pitch: f32 = (pitch as f32 - 64.0) / 64.0;
+        //println!("Pitch bend value : {}",norm_pitch); 
     }
 
     println!("CHANNEL : {}", get_channel(cmd));
@@ -85,7 +91,7 @@ pub fn process_midi_mesg(event: &[u8]) -> MidiResult {
         0xB0 => process_cc(event[1],event[2]),
         0x80|0x90 => process_note(clean_cmd, event[1], event[2]),
         0xD0 => println!("Channel press : {}", event[1]),
-        0xE0 => process_pitch_bend(event[2]),
+        0xE0 => process_pitch_bend((event[1],event[2])),
         _ => log::warn!("Unkown event : {:04X?}", event),
     }
 
