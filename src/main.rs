@@ -16,7 +16,9 @@ fn main() {
 
     match setup_client_params() {
         Ok(params) => {
-            let process = MidiProcessor { mesg: String::from("Midi processor!"), test: true};
+            let process = MidiProcessor {
+                debug: true,
+            };
 
             let stream_handle = rainout::run(&params.config,&params.run_opt,process).unwrap(); 
 
@@ -31,17 +33,13 @@ fn main() {
    }
 
 pub struct MidiProcessor {
-    mesg: String,
-    test: bool,
-    // midi_stack: [RawMidi; 2],
+    debug: bool,
 }
 
 impl ProcessHandler for MidiProcessor {
+
     fn init(&mut self, stream_info: &StreamInfo) {
         dbg!(stream_info);
-        if self.test {
-            println!("{:?}",self.mesg);
-        }
     }
 
     fn stream_changed(&mut self, stream_info: &StreamInfo) {
@@ -58,18 +56,20 @@ impl ProcessHandler for MidiProcessor {
         let events = proc_info.midi_inputs[0].events();
 
         if events.len() != 0 {
-            if events.len() > 1 {
-                for event in events.iter() {
-                    if let Err(e) = process_midi_mesg(event.data()) {
-                        panic!("{}",e);
-                    }
-                }
-            } else {
-                let event: RawMidi = events[0];
-                if let Err(e) = process_midi_mesg(event.data()) {
-                    panic!("{}",e);
-                }
-            };
+
+            process_midi_mesg(events);
+            // if events.len() > 1 {
+            //     for event in events.iter() {
+            //         if let Err(e) = process_midi_mesg(event.data(), cc_flag) {
+            //             panic!("{}",e);
+            //         }
+            //     }
+            // } else {
+            //     let event: RawMidi = events[0];
+            //     if let Err(e) = process_midi_mesg(event.data(), cc_flag) {
+            //         panic!("{}",e);
+            //     }
+            // };
         }; 
 
         //proc_info.midi_outputs[0].clear_and_copy_from(&proc_info.midi_inputs[0]);
