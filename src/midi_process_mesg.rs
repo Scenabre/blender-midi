@@ -13,24 +13,32 @@ pub fn process_midi_mesg(events: &[RawMidi]) -> MidiResult {
 // 0xC0      Prog chg    2              instr # 	
 // 0xD0      Chan Press  1              pressure     X
 // 0xE0      Pitch bend  2              lsb (7 bits) msb (7 bits)
-// 0xF0      (non-musical commands) 
+// 0xF0      (non-musical commands)
     
     fn get_note_name(note: u8) -> &'static str {
-        if note < 21 || note > 108 {
-            log::warn!("Note not in standard range !");
+
+        match note {
+            21 ..= 127 => {
+                let note_idx: usize = ((note-21)%12).into();
+                return CHROM_RANGE[note_idx]; 
+            },
+            0 ..= 20 => return "NiR",
+            _ => log::error!("Note value superior to 127 !"),
         }
 
-        let note_idx: usize = ((note-21)%12).into();
-
-       return CHROM_RANGE[note_idx]; 
+        ""
     }
 
     fn get_octave(note: u8) -> u8 {
-        if note < 21 || note > 108 {
-            log::warn!("Note not in standard range !");
-        }
-        return (note/12)-1;
 
+        match note {
+            21 ..= 127 => {
+                return (note/12)-1;
+            },
+            _ => log::warn!("Note not in standard range !"),
+        }
+
+        10
     }
 
     fn get_channel(cmd: u8) -> u8 {
@@ -42,12 +50,32 @@ pub fn process_midi_mesg(events: &[RawMidi]) -> MidiResult {
     }
 
     fn process_note(cmd: u8, note: u8, vel: u8) {
+
+        let note_name = get_note_name(note);
+        let note_octave = get_octave(note);
+        let mut note_num: u8 = 0;
+
+        if note_octave == 10 {
+            note_num = note;
+        }
+
         if cmd == 0x80 || vel == 0 {
-            println!("Note off : {}{}", get_note_name(note),get_octave(note));
+            if note_octave == 10 {
+                println!("Note off : {}", note_num);
+                return;
+            }
+            println!("Note off : {}{}", note_name, note_octave);
             return;
         }
 
-        println!("Note on : {}{} (vel: {})",get_note_name(note),get_octave(note),convert_half(vel));
+        let note_vel = convert_half(vel);
+
+        if note_octave == 10 {
+            println!("Note on : {} (vel: {})",note_num, note_vel);
+            return;
+        }
+
+        println!("Note on : {}{} (vel: {})",note_name, note_octave, note_vel);
 
     }
 
@@ -74,7 +102,6 @@ pub fn process_midi_mesg(events: &[RawMidi]) -> MidiResult {
                 0x05 => println!("Portamento : {}", cc_value),
                 _ =>  println!("CC #{} : {}", cc_num, cc_value),
             }
-
         }
 
         match cc_lsb_value {
@@ -96,7 +123,12 @@ pub fn process_midi_mesg(events: &[RawMidi]) -> MidiResult {
     }
 
     fn process_sys(event : &[u8]) {
-        let _cmd = event[0];
+
+        if ! event.contains(&0xF7) {
+            log::warn!("SysEx send without tail !");
+        }
+
+        let _end_pos = event.iter().position(|&x| x == 0xF7);
     }
 
     fn process_pitch_bend(pitch: (u8,u8)) {
@@ -108,6 +140,14 @@ pub fn process_midi_mesg(events: &[RawMidi]) -> MidiResult {
 
     let mut cc_lsb_flag = false;
     let mut cc_msb_val_save: u8 = 0;
+
+    let mut display_events: Vec<&[u8]> = vec![];
+
+    for event in events.iter() {
+        display_events.push(event.data());
+    }
+
+    println!("\n ---------\n  Midi event to process : {:04X?}\n ---------\n", display_events);
 
     for event in events.iter() {
         let event = event.data();
@@ -128,20 +168,21 @@ pub fn process_midi_mesg(events: &[RawMidi]) -> MidiResult {
             0x80|0x90 => process_note(clean_cmd, event[1], event[2]),
             0xA0 => println!("Poly Key Pressure Aftertouch on {}{} : {}", get_note_name(event[1]), get_octave(event[1]), convert_half(event[2])),
             0xB0 => {
-                match event[2] {
-                    cc_msb_value if cc_msb_value <= 0x1F => {
+                match event[1] {
+                    cc_num if cc_num <= 0x1F => {
                         cc_lsb_flag = true;
-                        cc_msb_val_save = cc_msb_value;
-                        process_cc(event[1],cc_msb_value,None);
+                        cc_msb_val_save = event[2];
+                        process_cc(cc_num, event[2],None);
                     },
-                    cc_lsb_value if cc_lsb_value > 0x1F => {
-                        if cc_lsb_value == 0x01 || cc_lsb_value == 0x41 {
-                            process_cc(event[1],cc_lsb_value, None);
+                    cc_num if cc_num > 0x1F => {
+                        if cc_num == 0x01 || cc_num == 0x41 {
+                            process_cc(cc_num, event[2], None); // Test with Mackie Control
                         } else if cc_lsb_flag == false {
-                            log::warn!("Find CC LSB besfore MSB !");
+                            log::warn!("Find CC LSB besfore MSB ! Processing like MSB");
+                            process_cc(cc_num, event[2], None);
                         } else {
-                            println!("CC LSB find : {}", cc_lsb_value);
-                            process_cc(event[1],cc_msb_val_save,Some(cc_lsb_value));
+                            println!("CC LSB find : {}", event[2]);
+                            process_cc(event[1],cc_msb_val_save,Some(event[2]));
                         }
                     },
                     _ => log::warn!("Unknown value found for CC !"),
@@ -153,6 +194,8 @@ pub fn process_midi_mesg(events: &[RawMidi]) -> MidiResult {
             0xF0 => process_sys(event),
             _ => log::warn!("Unkown event : {:04X?}", event),
         }
+
+        println!("----");
 
     }
 
