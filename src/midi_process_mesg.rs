@@ -1,5 +1,13 @@
 use rainout::RawMidi;
-pub type MidiResult = Result<u8, &'static str>;
+
+#[derive(Debug)]
+pub struct MidiMesg {
+    name: String,
+    value: f32,
+}
+
+pub type MidiResult = Result<[Vec<MidiMesg>;16], &'static str>;
+
 const CHROM_RANGE: [&str; 12] = ["A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#"];
 
 pub fn process_midi_mesg(events: &[RawMidi]) -> MidiResult {
@@ -14,6 +22,11 @@ pub fn process_midi_mesg(events: &[RawMidi]) -> MidiResult {
 // 0xD0      Chan Press  1              pressure     X
 // 0xE0      Pitch bend  2              lsb (7 bits) msb (7 bits)
 // 0xF0      (non-musical commands)
+
+    const SIZE: usize = 16;
+    const INIT: Vec<MidiMesg> = Vec::new();
+
+    let mut mesg_send: [Vec<MidiMesg>;SIZE] = [INIT;SIZE];
     
     fn get_note_name(note: u8) -> &'static str {
 
@@ -49,7 +62,12 @@ pub fn process_midi_mesg(events: &[RawMidi]) -> MidiResult {
         return vel as f32 / 127.0;
     }
 
-    fn process_note(cmd: u8, note: u8, vel: u8) {
+    fn process_note(cmd: u8, note: u8, vel: u8) -> MidiMesg {
+
+        let mut midi_mesg = MidiMesg {
+            name: "".to_string(),
+            value: 0.0,
+        };
 
         let note_name = get_note_name(note);
         let note_octave = get_octave(note);
@@ -62,37 +80,37 @@ pub fn process_midi_mesg(events: &[RawMidi]) -> MidiResult {
         if cmd == 0x80 || vel == 0 {
             if note_octave == 10 {
                 println!("Note off : {}", note_num);
-                return;
+                midi_mesg.name = format!("Note off : {}", note_num);
+                midi_mesg.value = 0.0;
+                return midi_mesg;
             }
             println!("Note off : {}{}", note_name, note_octave);
-            return;
+            midi_mesg.name = format!("Note off : {}{}", note_name, note_octave); 
+            midi_mesg.value = 0.0;
+            return midi_mesg;
         }
 
         let note_vel = convert_half(vel);
 
         if note_octave == 10 {
-            println!("Note on : {} (vel: {})",note_num, note_vel);
-            return;
+            println!("Note on : {} (vel: {})", note_num, note_vel);
+            midi_mesg.name = format!("Note on : {} (vel: {})", note_num, note_vel);
+            midi_mesg.value = note_vel;
+            return midi_mesg;
         }
 
-        println!("Note on : {}{} (vel: {})",note_name, note_octave, note_vel);
+        println!("Note on : {}{} (vel: {})", note_name, note_octave, note_vel);
+        midi_mesg.name = format!("Note on : {}{} (vel: {})", note_name, note_octave, note_vel);
+        midi_mesg.value = note_vel;
+
+        return midi_mesg;
 
     }
 
     fn process_cc(cc_num: u8, cc_msb_value: u8, cc_lsb_value: Option<u8>) {
 
-        // CC numbers :
-        // 0x00 : Bank change
-        // 0x01 : Modulation depth
-        // 0x02..0x03 : Not used
-        // 0x04 : Foot ctrl
-        // 0x05 : Portamento
-        // 0x06 : Not used
-        // 0x07 : Channel Volume
-        //
-
-        let cc_msb_range: Vec<u8> = vec![0,1,2,4,5,6,7,8,10,11,12,13,16,17,18,19,98,100];
-        let cc_lsb_range: Vec<u8> = vec![32,33,34,36,37,38,39,40,42,43,44,45,48,49,50,51,99,101];
+        let _cc_msb_range: Vec<u8> = vec![0,1,2,4,5,6,7,8,10,11,12,13,16,17,18,19,98,100];
+        let _cc_lsb_range: Vec<u8> = vec![32,33,34,36,37,38,39,40,42,43,44,45,48,49,50,51,99,101];
 
         fn print_cc_value(cc_num: u8, cc_value: u16) {
 
@@ -158,14 +176,20 @@ pub fn process_midi_mesg(events: &[RawMidi]) -> MidiResult {
             return Err("User press PANIC on midi device, shutdown client !");
         }
 
-        println!("CHANNEL : {}", get_channel(cmd));
+        let channel: usize = get_channel(cmd).into();
+        let chan_idx: usize = channel-1;
+
+        println!("CHANNEL : {}", channel);
 
         let clean_cmd = (cmd >> 4) << 4;
 
         println!("Raw MIDI : {:04X?} {:?}", event, event);
 
         match clean_cmd {
-            0x80|0x90 => process_note(clean_cmd, event[1], event[2]),
+            0x80|0x90 => {
+                let note = process_note(clean_cmd, event[1], event[2]);
+                mesg_send[chan_idx].push(note);
+            }
             0xA0 => println!("Poly Key Pressure Aftertouch on {}{} : {}", get_note_name(event[1]), get_octave(event[1]), convert_half(event[2])),
             0xB0 => {
                 match event[1] {
@@ -196,8 +220,9 @@ pub fn process_midi_mesg(events: &[RawMidi]) -> MidiResult {
         }
 
         println!("----");
-
     }
 
-    Ok(0)
+    //println!("Midi message sum : {:?}", mesg_send);
+
+    Ok(mesg_send)
 }
