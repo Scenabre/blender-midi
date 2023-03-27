@@ -199,17 +199,13 @@ pub fn process_midi_mesg(events: &[RawMidi], protocole: &str) -> MidiResult {
 
     println!("\n ---------\n  Midi event to process ({}:{}) : {:04X?}\n ---------\n", proto, protocole, display_events);
 
-
-    let cc_msb_find = events.iter().any(|event| event.data()[1] < 0x20 );
-    let cc_lsb_find = events.iter().any(|event| event.data()[1] > 0x1F && event.data()[1] < 0x40 );
-
-    for event in events.iter() {
+    for (idx, event) in events.iter().enumerate() {
         let event = event.data();
 
         let cmd = event[0];
 
         if cmd == 0xFF {
-            return Err("User press PANIC on midi device, shutdown client !");
+            return Err("User press PANIC on midi device !");
         }
 
         let channel: usize = get_channel(cmd).into();
@@ -243,25 +239,33 @@ pub fn process_midi_mesg(events: &[RawMidi], protocole: &str) -> MidiResult {
                         mesg_send[chan_idx].push(cc);
                     },
                     cc_num if cc_num <= 0x1F && cc_lsb_flag == false => {
-                        if cc_lsb_find == true {
-                            cc_lsb_flag = true;
-                            cc_msb_val_save = event[2];
-                            cc_num_save = cc_num;
-                        } else {
+
+                        let last_idx = events.len() - 1;
+
+                        if idx != last_idx {
+                            let next_clean_cmd = (events[idx+1].data()[0] >> 4) << 4;
+                            let next_channel: usize = get_channel(events[idx+1].data()[0]).into();
+
+                            if next_channel == channel && next_clean_cmd == clean_cmd {
+                                if events[idx+1].data()[1] == event[1]+0x20 {
+                                    cc_lsb_flag = true;
+                                    cc_msb_val_save = event[2];
+                                    cc_num_save = cc_num;
+                                }
+                            }
+                        }
+
+                        if cc_lsb_flag == false {
                             let cc = process_cc(cc_num, event[2], None);
                             mesg_send[chan_idx].push(cc);
                         }
                     },
                     cc_num if cc_num > 0x1F && cc_num < 0x40 => {
+                        let cc; 
 
-                        let mut cc = MidiMesg {
-                            name : "".to_string(),
-                            value : 0.0,
-                        };
-
-                        if (cc_msb_find == false && cc_lsb_find == true) || cc_lsb_flag == false {
+                        if cc_lsb_flag == false {
                             cc = process_cc(cc_num, event[2], None);
-                        } else if cc_lsb_flag == true {
+                        } else {
                             cc = process_cc(cc_num_save, cc_msb_val_save, Some(event[2]));
                             cc_lsb_flag = false;
                         }

@@ -4,7 +4,7 @@ use simple_logger::SimpleLogger;
 //use clap::{arg, command, value_parser, ArgAction, Command};
 
 use setup_client_params::setup_client_params;
-use midi_process_mesg::{MidiResult,process_midi_mesg};
+use midi_process_mesg::process_midi_mesg;
 
 mod setup_client_params;
 mod midi_process_mesg;
