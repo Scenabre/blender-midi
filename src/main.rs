@@ -58,7 +58,7 @@ impl ProcessHandler for MidiProcessor {
 
         if events.len() != 0 {
 
-            let midi_result = process_midi_mesg(events);
+            let midi_result = process_midi_mesg(events,"HUI");
 
             match midi_result {
                 Ok(mesg) => println!("Midi mesg : {:?}", mesg),

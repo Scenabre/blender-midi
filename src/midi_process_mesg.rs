@@ -10,7 +10,7 @@ pub type MidiResult = Result<[Vec<MidiMesg>;16], &'static str>;
 
 const CHROM_RANGE: [&str; 12] = ["A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#"];
 
-pub fn process_midi_mesg(events: &[RawMidi]) -> MidiResult {
+pub fn process_midi_mesg(events: &[RawMidi], protocole: &str) -> MidiResult {
 
 // CHANNEL VOICE MESG
 // Command  Meaning      # parameters  param 1      param 2
@@ -27,6 +27,15 @@ pub fn process_midi_mesg(events: &[RawMidi]) -> MidiResult {
     const INIT: Vec<MidiMesg> = Vec::new();
 
     let mut mesg_send: [Vec<MidiMesg>;SIZE] = [INIT;SIZE];
+
+    let proto = match protocole {
+        "HUI" => 0,
+        "MC"|"Mackie Control"|"MackieControl" => 1,
+        _ => {
+            log::warn!("Protocole unknown drop to HUI");
+            0
+        }
+    };
     
     fn get_note_name(note: u8) -> &'static str {
 
@@ -112,6 +121,11 @@ pub fn process_midi_mesg(events: &[RawMidi]) -> MidiResult {
         let _cc_msb_range: Vec<u8> = vec![0,1,2,4,5,6,7,8,10,11,12,13,16,17,18,19,98,100];
         let _cc_lsb_range: Vec<u8> = vec![32,33,34,36,37,38,39,40,42,43,44,45,48,49,50,51,99,101];
 
+        let mut cc_high: Vec<u8> = (64..85).collect();
+        let mut cc_range_2: Vec<u8> = (91..98).collect();
+        cc_high.push(88);
+        cc_high.append(&mut cc_range_2);
+
         fn print_cc_value(cc_num: u8, cc_value: u16) {
 
             match cc_num {
@@ -127,11 +141,6 @@ pub fn process_midi_mesg(events: &[RawMidi]) -> MidiResult {
                 print_cc_value(cc_num, cc_msb_value as u16);
             },
             Some(cc_lsb_value) => {
-                if cc_lsb_value > 0x65 {
-                    log::error!("CC value superior to 101 (0x65)");
-                    return;
-                }
-
                 let u16_cc_value = (cc_msb_value as u16) << 7 | cc_lsb_value as u16;
 
                 println!("CC with lsb : {}", u16_cc_value);
@@ -165,7 +174,9 @@ pub fn process_midi_mesg(events: &[RawMidi]) -> MidiResult {
         display_events.push(event.data());
     }
 
-    println!("\n ---------\n  Midi event to process : {:04X?}\n ---------\n", display_events);
+    println!("\n ---------\n  Midi event to process ({}:{}) : {:04X?}\n ---------\n", proto, protocole, display_events);
+
+
 
     for event in events.iter() {
         let event = event.data();
@@ -193,21 +204,21 @@ pub fn process_midi_mesg(events: &[RawMidi]) -> MidiResult {
             0xA0 => println!("Poly Key Pressure Aftertouch on {}{} : {}", get_note_name(event[1]), get_octave(event[1]), convert_half(event[2])),
             0xB0 => {
                 match event[1] {
-                    cc_num if cc_num <= 0x1F => {
+                    cc_num if cc_num <= 0x1F && cc_lsb_flag == false => {
                         cc_lsb_flag = true;
                         cc_msb_val_save = event[2];
-                        process_cc(cc_num, event[2],None);
+                        process_cc(cc_num, event[2], None);
                     },
-                    cc_num if cc_num > 0x1F => {
-                        if cc_num == 0x01 || cc_num == 0x41 {
+                    cc_num if cc_num > 0x1F && cc_num < 0x65 => {
+                        if proto == 1 && (cc_num == 0x01 || cc_num == 0x41) {
                             process_cc(cc_num, event[2], None); // Test with Mackie Control
                         } else if cc_lsb_flag == false {
                             log::warn!("Find CC LSB besfore MSB ! Processing like MSB");
                             process_cc(cc_num, event[2], None);
                         } else {
-                            println!("CC LSB find : {}", event[2]);
                             process_cc(event[1],cc_msb_val_save,Some(event[2]));
                         }
+                        cc_lsb_flag = false;
                     },
                     _ => log::warn!("Unknown value found for CC !"),
                 }
