@@ -58,27 +58,15 @@ impl ProcessHandler for MidiProcessor {
 
         if events.len() != 0 {
 
-            let midi_result = process_midi_mesg(events,"HUI");
+            let midi_result = process_midi_mesg(events,"MC");
 
             match midi_result {
                 Ok(mesg) => println!("Midi mesg : {:?}", mesg),
                 Err(err) => println!("No midi mesg output : {}", err),
             };
+        };
 
-            // if events.len() > 1 {
-            //     for event in events.iter() {
-            //         if let Err(e) = process_midi_mesg(event.data(), cc_flag) {
-            //             panic!("{}",e);
-            //         }
-            //     }
-            // } else {
-            //     let event: RawMidi = events[0];
-            //     if let Err(e) = process_midi_mesg(event.data(), cc_flag) {
-            //         panic!("{}",e);
-            //     }
-            // };
-        }; 
-        //proc_info.midi_outputs[0].clear_and_copy_from(&proc_info.midi_inputs[0]);
+        proc_info.midi_outputs[0].clear_and_copy_from(&proc_info.midi_inputs[0]);
     }
 
 }
