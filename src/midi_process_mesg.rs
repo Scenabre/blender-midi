@@ -1,12 +1,30 @@
 use rainout::RawMidi;
+use crate::midi_event::trigger_midi_events;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MidiMesg {
-    name: String,
-    value: f32,
+    pub channel: u8,
+    pub name: String,
+    pub value: f32,
 }
 
-pub type MidiResult = Result<[Vec<MidiMesg>;16], &'static str>;
+impl MidiMesg {
+    fn new() -> Self {
+        Self {
+            channel: 0,
+            name: "".to_string(),
+            value: 0.0,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct MidiProcess {
+    pub result: [Vec<MidiMesg>;16],
+    pub to_send: Vec<RawMidi>,
+}
+
+pub type MidiResult = Result<MidiProcess, &'static str>;
 
 const CHROM_RANGE: [&str; 12] = ["A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#"];
 
@@ -27,6 +45,8 @@ pub fn process_midi_mesg(events: &[RawMidi], protocole: &str) -> MidiResult {
     const INIT: Vec<MidiMesg> = Vec::new();
 
     let mut mesg_send: [Vec<MidiMesg>;SIZE] = [INIT;SIZE];
+    let mut midi_mesg: MidiMesg = MidiMesg::new();
+    let midi_to_send: Vec<RawMidi> = Vec::new();
 
     let proto = match protocole {
         "HUI" => 0,
@@ -73,10 +93,7 @@ pub fn process_midi_mesg(events: &[RawMidi], protocole: &str) -> MidiResult {
 
     fn process_note(cmd: u8, note: u8, vel: u8) -> MidiMesg {
 
-        let mut midi_mesg = MidiMesg {
-            name: "".to_string(),
-            value: 0.0,
-        };
+        let mut midi_mesg = MidiMesg::new();
 
         let note_name = get_note_name(note);
         let note_octave = get_octave(note);
@@ -108,6 +125,8 @@ pub fn process_midi_mesg(events: &[RawMidi], protocole: &str) -> MidiResult {
             return midi_mesg;
         }
 
+        //if note_name == ""
+
         println!("Note on : {}{} (vel: {})", note_name, note_octave, note_vel);
         midi_mesg.name = format!("Note on : {}{} (vel: {})", note_name, note_octave, note_vel);
         midi_mesg.value = note_vel;
@@ -118,10 +137,17 @@ pub fn process_midi_mesg(events: &[RawMidi], protocole: &str) -> MidiResult {
 
     fn process_cc(cc_num: u8, cc_msb_value: u8, cc_lsb_value: Option<u8>) -> MidiMesg {
 
-        let mut midi_mesg = MidiMesg {
-            name: "".to_string(),
-            value: 0.0,
-        };
+        // SYSEX TEST Mackie Control
+        // https://www.simon-florentin.fr/blog/2016/12/mcp-un-peu-de-theorie-avec-les-sysex/index.html
+        // SYSEX = Header + Mesg + 0xF7
+        // Header = F0 00 00 66 00
+        // 00 00 66 (id vendor)
+        // 00 (id product)
+        // Mesg sur LCD = F0 00 00 66 00 12 pos mesg F7
+        // pos = 00 pour la première ligne et 38 pour la seconde ligne
+        // 7 char par ligne donc 0x00 jsq 0x37 et 0x38 jsq 0x6F
+
+        let mut midi_mesg = MidiMesg::new();
 
         let _cc_msb_range: Vec<u8> = vec![0,1,2,4,5,6,7,8,10,11,12,13,16,17,18,19,98,100];
         let _cc_lsb_range: Vec<u8> = vec![32,33,34,36,37,38,39,40,42,43,44,45,48,49,50,51,99,101];
@@ -171,10 +197,7 @@ pub fn process_midi_mesg(events: &[RawMidi], protocole: &str) -> MidiResult {
 
     fn process_pitch_bend(pitch: (u8,u8)) -> MidiMesg {
 
-        let mut midi_mesg = MidiMesg {
-            name: "".to_string(),
-            value: 0.0,
-        };
+        let mut midi_mesg = MidiMesg::new();
 
         let (lsb,msb) = pitch;
         let u16_pitch = (msb as u16) << 7 | lsb as u16;
@@ -208,8 +231,10 @@ pub fn process_midi_mesg(events: &[RawMidi], protocole: &str) -> MidiResult {
             return Err("User press PANIC on midi device !");
         }
 
-        let channel: usize = get_channel(cmd).into();
-        let chan_idx: usize = channel-1;
+        trigger_midi_events(event);
+
+        let channel: u8 = get_channel(cmd);
+        let chan_idx: usize = usize::from(channel-1);
 
         println!("CHANNEL : {}", channel);
 
@@ -219,24 +244,22 @@ pub fn process_midi_mesg(events: &[RawMidi], protocole: &str) -> MidiResult {
 
         match clean_cmd {
             0x80|0x90 => {
-                let note = process_note(clean_cmd, event[1], event[2]);
-                mesg_send[chan_idx].push(note);
+                midi_mesg = process_note(clean_cmd, event[1], event[2]);
+                println!("{}",midi_mesg.name);
             }
             0xA0 => {
                 let poly_key_value = convert_half(event[2]);
-                let poly_key = MidiMesg {
+                midi_mesg = MidiMesg {
+                    channel,
                     name : format!("Poly Key Pressure Aftertouch on {}{}", get_note_name(event[1]), get_octave(event[1])),
                     value : poly_key_value,
                 };
-                println!("{} : {}", poly_key.name, poly_key.value);
-
-                mesg_send[chan_idx].push(poly_key);
+                println!("{} : {}", midi_mesg.name, midi_mesg.value);
             }
             0xB0 => {
                 match event[1] {
                     cc_num if cc_num > 0x3F && cc_num < 0x62 => {
-                        let cc = process_cc(cc_num, event[2], None);
-                        mesg_send[chan_idx].push(cc);
+                        midi_mesg = process_cc(cc_num, event[2], None);
                     },
                     cc_num if cc_num <= 0x1F && cc_lsb_flag == false => {
 
@@ -244,7 +267,7 @@ pub fn process_midi_mesg(events: &[RawMidi], protocole: &str) -> MidiResult {
 
                         if idx != last_idx {
                             let next_clean_cmd = (events[idx+1].data()[0] >> 4) << 4;
-                            let next_channel: usize = get_channel(events[idx+1].data()[0]).into();
+                            let next_channel = get_channel(events[idx+1].data()[0]);
 
                             if next_channel == channel && next_clean_cmd == clean_cmd {
                                 if events[idx+1].data()[1] == event[1]+0x20 {
@@ -256,20 +279,16 @@ pub fn process_midi_mesg(events: &[RawMidi], protocole: &str) -> MidiResult {
                         }
 
                         if cc_lsb_flag == false {
-                            let cc = process_cc(cc_num, event[2], None);
-                            mesg_send[chan_idx].push(cc);
+                            midi_mesg = process_cc(cc_num, event[2], None);
                         }
                     },
                     cc_num if cc_num > 0x1F && cc_num < 0x40 => {
-                        let cc; 
-
                         if cc_lsb_flag == false {
-                            cc = process_cc(cc_num, event[2], None);
+                            midi_mesg = process_cc(cc_num, event[2], None);
                         } else {
-                            cc = process_cc(cc_num_save, cc_msb_val_save, Some(event[2]));
+                            midi_mesg = process_cc(cc_num_save, cc_msb_val_save, Some(event[2]));
                             cc_lsb_flag = false;
                         }
-                        mesg_send[chan_idx].push(cc);
                     },
                     _ => log::warn!("Unknown value found for CC !"),
                 }
@@ -280,23 +299,30 @@ pub fn process_midi_mesg(events: &[RawMidi], protocole: &str) -> MidiResult {
 
                 println!("Channel Pressure Aftertouch : {}", chan_press_value);
 
-                let chan_press = MidiMesg {
+                midi_mesg = MidiMesg {
+                    channel,
                     name : "Channel Pressure Aftertouch".to_string(),
                     value : chan_press_value,
                 };
-
-                mesg_send[chan_idx].push(chan_press);
             }
             0xE0 => {
-                let pitch = process_pitch_bend((event[1],event[2]));
-                mesg_send[chan_idx].push(pitch);
+                midi_mesg = process_pitch_bend((event[1],event[2]));
             },
             0xF0 => process_sys(event),
             _ => log::warn!("Unkown event : {:04X?}", event),
         }
 
+        if ! midi_mesg.name.is_empty() {
+            mesg_send[chan_idx].push(midi_mesg.clone());
+        }
+
         println!("----");
     }
 
-    Ok(mesg_send)
+    let midi_to_send: MidiProcess = MidiProcess {
+        result: mesg_send,
+        to_send: midi_to_send, 
+    };
+
+    Ok(midi_to_send)
 }

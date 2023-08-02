@@ -1,4 +1,4 @@
-use rainout::{ProcessInfo, ProcessHandler, StreamInfo};
+use rainout::{ProcessInfo, ProcessHandler, StreamInfo, MidiBuffer};
 //use std::string::String;
 use simple_logger::SimpleLogger;
 //use clap::{arg, command, value_parser, ArgAction, Command};
@@ -8,6 +8,8 @@ use midi_process_mesg::process_midi_mesg;
 
 mod setup_client_params;
 mod midi_process_mesg;
+mod midi_event;
+mod midi_send_mesg;
 
 fn main() {
     //let args = ""; 
@@ -34,12 +36,14 @@ fn main() {
 
 pub struct MidiProcessor {
     debug : bool,
+    //to_send : MidiBuffer,
 }
 
 impl ProcessHandler for MidiProcessor {
 
     fn init(&mut self, stream_info: &StreamInfo) {
         println!("Midi processor : {}", self.debug);
+        //self.to_send = MidiBuffer::new(16);
         dbg!(stream_info);
     }
 
@@ -61,7 +65,10 @@ impl ProcessHandler for MidiProcessor {
             let midi_result = process_midi_mesg(events,"MC");
 
             match midi_result {
-                Ok(mesg) => println!("Midi mesg : {:?}", mesg),
+                Ok(mesg) => { 
+                    println!("Midi mesg : {:?}", mesg.to_send);
+                    //proc_info.midi_outputs[0].push(mesg);
+                },
                 Err(err) => println!("No midi mesg output : {}", err),
             };
         };
