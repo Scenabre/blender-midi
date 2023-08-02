@@ -62,7 +62,7 @@ impl ProcessHandler for MidiProcessor {
 
         if events.len() != 0 {
 
-            let midi_result = process_midi_mesg(events,"MC");
+            let midi_result = process_midi_mesg(&proc_info, events,"MC");
 
             match midi_result {
                 Ok(mesg) => { 

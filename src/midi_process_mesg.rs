@@ -1,4 +1,4 @@
-use rainout::RawMidi;
+use rainout::{RawMidi, ProcessInfo};
 use crate::midi_event::trigger_midi_events;
 
 #[derive(Debug, Clone)]
@@ -28,7 +28,7 @@ pub type MidiResult = Result<MidiProcess, &'static str>;
 
 const CHROM_RANGE: [&str; 12] = ["A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#"];
 
-pub fn process_midi_mesg(events: &[RawMidi], protocole: &str) -> MidiResult {
+pub fn process_midi_mesg(proc_info: &ProcessInfo, events: &[RawMidi], protocole: &str) -> MidiResult {
 
     // CHANNEL VOICE MESG
     // Command  Meaning      # parameters  param 1      param 2
@@ -46,7 +46,7 @@ pub fn process_midi_mesg(events: &[RawMidi], protocole: &str) -> MidiResult {
 
     let mut mesg_send: [Vec<MidiMesg>;SIZE] = [INIT;SIZE];
     let mut midi_mesg: MidiMesg = MidiMesg::new();
-    let midi_to_send: Vec<RawMidi> = Vec::new();
+    let mut midi_to_send: Vec<RawMidi> = vec![];
 
     let proto = match protocole {
         "HUI" => 0,
@@ -125,14 +125,11 @@ pub fn process_midi_mesg(events: &[RawMidi], protocole: &str) -> MidiResult {
             return midi_mesg;
         }
 
-        //if note_name == ""
-
         println!("Note on : {}{} (vel: {})", note_name, note_octave, note_vel);
         midi_mesg.name = format!("Note on : {}{} (vel: {})", note_name, note_octave, note_vel);
         midi_mesg.value = note_vel;
 
         return midi_mesg;
-
     }
 
     fn process_cc(cc_num: u8, cc_msb_value: u8, cc_lsb_value: Option<u8>) -> MidiMesg {
@@ -231,7 +228,12 @@ pub fn process_midi_mesg(events: &[RawMidi], protocole: &str) -> MidiResult {
             return Err("User press PANIC on midi device !");
         }
 
-        trigger_midi_events(event);
+        match trigger_midi_events(&proc_info, event) {
+            Ok(raw_midi) => midi_to_send.extend(raw_midi),
+            Err(err) => log::warn!("Trigger event dropped in process mesg ! Debug : {}", err),
+        }
+
+        midi_to_send.extend(trigger_midi_events(&proc_info, event).unwrap());
 
         let channel: u8 = get_channel(cmd);
         let chan_idx: usize = usize::from(channel-1);
