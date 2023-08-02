@@ -220,6 +220,9 @@ pub fn process_midi_mesg(proc_info: &ProcessInfo, events: &[RawMidi], protocole:
     println!("\n ---------\n  Midi event to process ({}:{}) : {:04X?}\n ---------\n", proto, protocole, display_events);
 
     for (idx, event) in events.iter().enumerate() {
+
+        println!("Delta frames : {:?}", event.delta_frames);
+
         let event = event.data();
 
         let cmd = event[0];
@@ -232,8 +235,6 @@ pub fn process_midi_mesg(proc_info: &ProcessInfo, events: &[RawMidi], protocole:
             Ok(raw_midi) => midi_to_send.extend(raw_midi),
             Err(err) => log::warn!("Trigger event dropped in process mesg ! Debug : {}", err),
         }
-
-        midi_to_send.extend(trigger_midi_events(&proc_info, event).unwrap());
 
         let channel: u8 = get_channel(cmd);
         let chan_idx: usize = usize::from(channel-1);

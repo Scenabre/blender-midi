@@ -1,6 +1,6 @@
 use rainout::{MAX_MIDI_MSG_SIZE, RawMidi, ProcessInfo};
 //use crate::midi_process_mesg::MidiMesg;
-
+//
 // CHANNEL VOICE MESG
 // Command  Meaning      # parameters  param 1      param 2
 // 0x80      Note-off    2              key          velocity
@@ -15,17 +15,23 @@ use rainout::{MAX_MIDI_MSG_SIZE, RawMidi, ProcessInfo};
 
 pub fn convert_value_to_lsb_msb(value: f32) -> [u8;2] {
     let u16_value = (value*16384.0).round() as u16;
+    let lsb_value = ((u16_value & 0xff)) as u8;
+    let msb_value = (u16_value >> 7) as u8;
 
-    [(u16_value >> 8) as u8,(u16_value & 0xff) as u8] // [high_byte, low_byte] => [msb,lsb]
+    let u16_reverse_value = (msb_value as u16) << 7 | lsb_value as u16;
+    println!("Calculate CC value : {}", (u16_reverse_value as f32)/16384.0);
+
+
+    [lsb_value,msb_value] 
 }
 
 pub fn make_raw_midi_mesg(proc_info: &ProcessInfo, mesg: [u8;MAX_MIDI_MSG_SIZE]) -> Result<RawMidi, String> {
-// Note off = NOFF
-// Note on = NON
-// Aftertouch = AT
-// Con CTRL = CC
-// Chan press = CP
-// Pitch bend = PB
+    // Note off = NOFF
+    // Note on = NON
+    // Aftertouch = AT
+    // Con CTRL = CC
+    // Chan press = CP
+    // Pitch bend = PB
     let raw_midi_mesg: Result<RawMidi,String> = match RawMidi::new(proc_info.frames.try_into().unwrap(),&mesg) {
         Ok(raw_midi) => Ok(raw_midi),
         Err(err) =>  {

@@ -59,6 +59,7 @@ impl ProcessHandler for MidiProcessor {
         };
 
         let events = proc_info.midi_inputs[0].events();
+        //let mut midi_buffer;
 
         if events.len() != 0 {
 
@@ -66,14 +67,20 @@ impl ProcessHandler for MidiProcessor {
 
             match midi_result {
                 Ok(mesg) => { 
-                    println!("Midi mesg : {:?}", mesg.to_send);
-                    //proc_info.midi_outputs[0].push(mesg);
+                    if ! mesg.to_send.is_empty() {
+                        println!("Midi mesg : {:?}", mesg.to_send);
+                        for midi_mesg in mesg.to_send.iter() {
+                            proc_info.midi_outputs[0].push(*midi_mesg).unwrap_or_else(|err| {
+                                log::error!("Unable to push Midi to device : {}",err);
+                            });
+                        }
+                    }
                 },
                 Err(err) => println!("No midi mesg output : {}", err),
             };
         };
 
-        proc_info.midi_outputs[0].clear_and_copy_from(&proc_info.midi_inputs[0]);
+        //proc_info.midi_outputs[0].clear_and_copy_from(&proc_info.midi_inputs[0]);
     }
 
 }

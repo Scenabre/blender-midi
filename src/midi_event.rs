@@ -7,6 +7,7 @@ const EPSILON: f32 = 0.01;
 
 #[derive(Debug)]
 struct Event {
+    index: u8,
     name: String,
     mesg_in: Vec<u8>,
     cmd_out: Option<u8>,
@@ -28,16 +29,27 @@ struct Event {
 
 pub fn trigger_midi_events(proc_info: &ProcessInfo, mesg: &[u8]) -> Result<Vec<RawMidi>,String> {
 
-    let cc_60_cw_event: Event = Event {
+    let cc_60_ccw_event: Event = Event {
+        index: 0,
         name: "CC #60 CCW → PB #1".to_string(),
         mesg_in: vec![0xB0,0x3C,0x41],
         cmd_out: Some(0xE0),
         value_out: None,
-        mod_rule: 1,
+        mod_rule: 0,
         mod_amount: Some(EPSILON),
     };
 
-    let triggers: Vec<&Event> = vec![&cc_60_cw_event];
+    let cc_60_cw_event: Event = Event {
+        index: 1,
+        name: "CC #60 CW → PB #1".to_string(),
+        mesg_in: vec![0xB0,0x3C,0x01],
+        cmd_out: Some(0xE0),
+        value_out: Some(vec![0,0]),
+        mod_rule: 0,
+        mod_amount: None,
+    };
+
+    let triggers: Vec<&Event> = vec![&cc_60_cw_event,&cc_60_ccw_event];
 
     let mut trigger_result: Vec<RawMidi> = vec![];
 
@@ -47,10 +59,22 @@ pub fn trigger_midi_events(proc_info: &ProcessInfo, mesg: &[u8]) -> Result<Vec<R
 
             println!("Event triggered : {}", trigger.name);
 
-            let value_out = convert_value_to_lsb_msb(0.5);
             let mut midi_mesg: [u8;MAX_MIDI_MSG_SIZE] = [0;MAX_MIDI_MSG_SIZE];
-            midi_mesg[0] = cc_60_cw_event.cmd_out.unwrap_or_default();
-            midi_mesg[1..3].copy_from_slice(&value_out);
+
+            match trigger.index {
+                0 => {
+                    let value_out = convert_value_to_lsb_msb(0.8);
+                    midi_mesg[0] = cc_60_ccw_event.cmd_out.unwrap_or_default();
+                    midi_mesg[1..3].copy_from_slice(&value_out);
+
+                },
+                1 => {
+                    let value_out = convert_value_to_lsb_msb(0.0);
+                    midi_mesg[0] = cc_60_cw_event.cmd_out.unwrap_or_default();
+                    midi_mesg[1..3].copy_from_slice(&value_out);
+                },
+                _ => log::warn!("Trigger event not implemented yet"),
+            }
 
             match make_raw_midi_mesg(&proc_info, midi_mesg) {
                 Ok(raw_midi) => trigger_result.push(raw_midi),
