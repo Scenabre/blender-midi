@@ -1,10 +1,11 @@
-use rainout::{ProcessInfo, ProcessHandler, StreamInfo, MidiBuffer};
+use rainout::{ProcessInfo, ProcessHandler, StreamInfo, RawMidi};
 //use std::string::String;
 use simple_logger::SimpleLogger;
 //use clap::{arg, command, value_parser, ArgAction, Command};
 
 use setup_client_params::setup_client_params;
 use midi_process_mesg::process_midi_mesg;
+use midi_send_mesg::initialize_mc_device;
 
 mod setup_client_params;
 mod midi_process_mesg;
@@ -20,6 +21,7 @@ fn main() {
         Ok(params) => {
             let process = MidiProcessor {
                 debug: false,
+                to_send: Vec::new(),
             };
 
             let stream_handle = rainout::run(&params.config,&params.run_opt,process).unwrap(); 
@@ -36,14 +38,20 @@ fn main() {
 
 pub struct MidiProcessor {
     debug : bool,
-    //to_send : MidiBuffer,
+    to_send : Vec<RawMidi>,
 }
 
 impl ProcessHandler for MidiProcessor {
 
     fn init(&mut self, stream_info: &StreamInfo) {
         println!("Midi processor : {}", self.debug);
-        //self.to_send = MidiBuffer::new(16);
+        let init_mc_dev = initialize_mc_device();
+        match init_mc_dev {
+            Ok(mesg) => {
+                self.to_send.extend(mesg);
+            },
+            Err(err) => println!("{}",err),
+        };
         dbg!(stream_info);
     }
 
@@ -53,6 +61,15 @@ impl ProcessHandler for MidiProcessor {
     }
 
     fn process<'a>(&mut self, proc_info: ProcessInfo<'a>) {
+
+        if ! self.to_send.is_empty() {
+            for midi_mesg in self.to_send.iter() {
+                proc_info.midi_outputs[0].push(*midi_mesg).unwrap_or_else(|err| {
+                    log::error!("Unable to push initialize data to midi device : {}",err);
+                });
+            }
+            self.to_send.clear();
+        };
 
         if proc_info.midi_inputs.len() == 0 {
             return;
