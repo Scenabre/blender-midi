@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rainout = { git = "https://github.com/MeadowlarkDAW/rainout.git", features = ["midi","jack-linux"]}
+rainout = { path = "deps/rainout", features = ["midi","jack-linux"]}
 clap = "4.1.8"
 log = "*"
 simple_logger = "2.1"

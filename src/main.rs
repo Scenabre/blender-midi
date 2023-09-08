@@ -2,6 +2,7 @@ use rainout::{ProcessInfo, ProcessHandler, StreamInfo, RawMidi};
 //use std::string::String;
 use simple_logger::SimpleLogger;
 //use clap::{arg, command, value_parser, ArgAction, Command};
+use std::time::{Instant};
 
 use setup_client_params::setup_client_params;
 use midi_process_mesg::process_midi_mesg;
@@ -22,6 +23,8 @@ fn main() {
             let process = MidiProcessor {
                 debug: false,
                 to_send: Vec::new(),
+                loop_num: 0,
+                time: Instant::now(),
             };
 
             let stream_handle = rainout::run(&params.config,&params.run_opt,process).unwrap(); 
@@ -39,6 +42,8 @@ fn main() {
 pub struct MidiProcessor {
     debug : bool,
     to_send : Vec<RawMidi>,
+    loop_num: u32,
+    time: Instant,
 }
 
 impl ProcessHandler for MidiProcessor {
@@ -62,13 +67,19 @@ impl ProcessHandler for MidiProcessor {
 
     fn process<'a>(&mut self, proc_info: ProcessInfo<'a>) {
 
+        proc_info.midi_outputs[0].clear();
+
+        let start = Instant::now();
+
         if ! self.to_send.is_empty() {
-            for midi_mesg in self.to_send.iter() {
-                proc_info.midi_outputs[0].push(*midi_mesg).unwrap_or_else(|err| {
+            match self.to_send.pop() {
+                Some(midi_mesg) => proc_info.midi_outputs[0].push(midi_mesg).unwrap_or_else(|err| {
                     log::error!("Unable to push initialize data to midi device : {}",err);
-                });
-            }
-            self.to_send.clear();
+                }),
+                None => log::error!("Unable to get midi mesg from to_send buffer")
+
+            };
+            log::info!("Buffer : {:?}",proc_info.midi_outputs[0]);
         };
 
         if proc_info.midi_inputs.len() == 0 {
@@ -95,9 +106,13 @@ impl ProcessHandler for MidiProcessor {
                 },
                 Err(err) => println!("No midi mesg output : {}", err),
             };
+            let duration = start.elapsed();
+            log::info!("[{}] Process time duration : {:?} | Time since program begin : {:?}",self.loop_num, duration, self.time.elapsed());
         };
 
-        //proc_info.midi_outputs[0].clear_and_copy_from(&proc_info.midi_inputs[0]);
+        self.loop_num += 1;
+
+        proc_info.midi_outputs[0].extend_from_slice(&proc_info.midi_inputs[0].events()).unwrap(); 
     }
 
 }
