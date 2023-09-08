@@ -66,21 +66,32 @@ fn make_raw_midi_mesg_fast(time: u32, mesg: [u8;MAX_MIDI_MSG_SIZE]) -> Result<Ra
 
 fn make_sysex_mesg(time: u32, lcd_num: u8, line_num: u8, mesg: String) -> Result<RawMidi, String> {
 
+    // SYSEX MATRIX POS
+    // 00 38
+    // 07 3F
+    // 0E 46
+    // 15 4D
+    // 1C 54
+    // 23 5B
+    // 2A 62
+    // 31 69
+    //
+
+    let position: u8 = ((lcd_num-1)+((line_num-1)*8))*7;
+
     let mut midi_data: [u8;MAX_MIDI_MSG_SIZE] = [0;MAX_MIDI_MSG_SIZE];
 
-    let prefix = [0xF0, 0x00, 0x00, 0x66, 0x14, 0x12, 0x00];
+    let prefix = [0xF0, 0x00, 0x00, 0x66, 0x14, 0x12, position];
 
     let content = mesg.into_bytes();
 
     let mesg_len = content.len();
 
-    println!("{:?}",content);
-
     midi_data[0..7].copy_from_slice(&prefix);
 
-    midi_data[7..mesg_len+1].copy_from_slice(&content);
+    midi_data[7..(7+mesg_len)].copy_from_slice(&content);
 
-    midi_data[mesg_len+1] = 0xF7;
+    midi_data[7+mesg_len] = 0xF7;
 
     let raw_midi_mesg = make_raw_midi_mesg_fast(time,midi_data).unwrap();
 
@@ -101,16 +112,6 @@ pub fn initialize_mc_device() -> Result<Vec<RawMidi>,String> {
     let pitch_bend_prefix = 0xE0;
 
     let mut time: u32 = 0;
-
-    // SYSEX MATRIX POS
-    // 00 38
-    // 07 3F
-    // 0E 46
-    // 15 4D
-    // 1C 54
-    // 23 5B
-    // 2A 62
-    // 31 69
 
     //let sysx_mesg = [0xF0, 0x00, 0x00, 0x66, 0x14, 0x12, 0x00, 0x41, 0x78, 0x65, 0x6C, 0xF7, 0, 0, 0, 0];
     //let sysx_mesg_2 = [0xF0, 0x00, 0x00, 0x66, 0x14, 0x12, 0x07, 0x41, 0x78, 0x65, 0x6C, 0xF7, 0, 0, 0, 0];
@@ -137,10 +138,8 @@ pub fn initialize_mc_device() -> Result<Vec<RawMidi>,String> {
         //time += 100;
     }
 
-    raw_midi_mesg.push(make_sysex_mesg(time,1,1,"TEST".to_string()).unwrap());
+    raw_midi_mesg.push(make_sysex_mesg(time+1000,1,1,"TEST".to_string()).unwrap());
 
-
-  
     return Ok(raw_midi_mesg)
 
 }

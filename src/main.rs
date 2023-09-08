@@ -79,7 +79,7 @@ impl ProcessHandler for MidiProcessor {
                 None => log::error!("Unable to get midi mesg from to_send buffer")
 
             };
-            log::info!("Buffer : {:?}",proc_info.midi_outputs[0]);
+            //log::info!("Buffer : {:?}",proc_info.midi_outputs[0]);
         };
 
         if proc_info.midi_inputs.len() == 0 {
