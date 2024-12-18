@@ -4,11 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rainout = { path = "deps/rainout", features = ["midi","jack-linux"]}
-clap = "4.1.8"
+# rainout = { path = "deps/rainout", features = ["midi","jack-linux"]}
+clap = "4"
 log = "*"
-simple_logger = "2.1"
-thiserror = "1.0.39"
+simple_logger = "5"
+thiserror = "2"
+midir = { version = "0.10.1", features = ["jack"] }
 
 # [dev-dependencies]
 # log = "*"
