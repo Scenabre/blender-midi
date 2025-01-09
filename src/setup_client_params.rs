@@ -1,79 +1,109 @@
-use rainout::{MidiControlScheme, Backend, RainoutConfig, RunOptions, AutoOption, MidiPortConfig, MidiConfig, AudioDeviceConfig};
+use log::debug;
+//use rainout::{MidiControlScheme, Backend, RainoutConfig, RunOptions, AutoOption, MidiPortConfig, MidiConfig, AudioDeviceConfig};
+use midir::{Ignore, MidiInput, MidiInputPort, MidiOutput, MidiOutputPort};
+use std::io::{stdin, stdout, Write};
+
 use thiserror::Error;
 
+use crate::midi_process_mesg::CCflag;
+
 pub struct AudioParams {
-    pub config: RainoutConfig,
-    pub run_opt: RunOptions,
+    pub port_name: String,
+    pub midi_input: MidiInput,
+    pub midi_input_port: MidiInputPort,
+    pub midi_output: MidiOutput,
+    pub midi_output_port: MidiOutputPort,
+    pub cc_flag: CCflag,
 }
 
 #[derive(Error, Debug)]
 pub enum ParamsInitError {
     #[error("No midi device found")]
     MidiDeviceNotFound,
+    #[error("No input port found")]
+    InputPortNotfound,
+    #[error("Unable to create MidiInput")]
+    MidiInputError,
+    #[error("No output port found")]
+    OutputPortNotfound,
+    #[error("Unable to create MidiOutput")]
+    MidiOutputError,
 }
+
+const CLIENT_NAME_IN: &str = "Blender midi - in";
+const CLIENT_NAME_OUT: &str = "Blender midi - out";
+const DEFAULT_PORT_NAME: &str = "UMC204HD";
 
 pub type SetupResult = Result<AudioParams, ParamsInitError>;
 
 pub fn setup_client_params() -> SetupResult {
+    //let audio_in_ports: Vec<String> = vec![];
 
-    let audio_in_ports: Vec<String> = vec![];
-    let audio_out_ports: Vec<String> = vec![];
-
-    let audio_device_conf = AudioDeviceConfig::Jack {
-        in_ports: audio_in_ports,
-        out_ports: audio_out_ports,
+    let mut midi_in = match MidiInput::new(CLIENT_NAME_IN) {
+        Ok(midi_in) => midi_in,
+        Err(_) => return Err(ParamsInitError::MidiInputError),
     };
 
-    let midi_devices = rainout::enumerate_midi_backend(Backend::Jack).unwrap();
-
-    if midi_devices.in_ports.len() == 0 || midi_devices.out_ports.len() == 0 {
-       return Err(ParamsInitError::MidiDeviceNotFound);
-    }
-
-    let default_midi_in_dev = midi_devices.in_ports[1].id.clone();
-    let default_midi_out_dev = midi_devices.out_ports[1].id.clone();
-
-    let midi_in_ports: Vec<MidiPortConfig> = vec![ MidiPortConfig {
-        device_id: default_midi_in_dev,
-        port_index: 0,
-        control_scheme: MidiControlScheme::default(),
-    }];
-
-    let midi_out_ports: Vec<MidiPortConfig> = vec![ MidiPortConfig {
-        device_id: default_midi_out_dev,
-        port_index: 0,
-        control_scheme: MidiControlScheme::default(),
-    }];
-
-    let midi_conf = MidiConfig {
-        midi_backend: AutoOption::Use(Backend::Jack),
-        in_ports: AutoOption::Use(midi_in_ports),
-        out_ports: AutoOption::Use(midi_out_ports),
+    let midi_out = match MidiOutput::new(CLIENT_NAME_OUT) {
+        Ok(midi_out) => midi_out,
+        Err(_) => return Err(ParamsInitError::MidiOutputError),
     };
 
-    let rainout_config = RainoutConfig {
-        audio_backend: AutoOption::Use(Backend::Jack),
-        audio_device: audio_device_conf,
-        sample_rate: AutoOption::Use(48000),
-        block_size: AutoOption::Use(512),
-        take_exclusive_access: false,
-        midi_config: Some(midi_conf),
+    midi_in.ignore(Ignore::None);
+
+    let in_ports = midi_in.ports();
+    let in_port: &MidiInputPort = match in_ports.len() {
+        0 => return Err(ParamsInitError::InputPortNotfound),
+        _ => {
+            let mut idx_found: usize = 0;
+            for (i, p) in in_ports.iter().enumerate() {
+                let port_name = midi_in.port_name(p).unwrap();
+
+                if port_name.contains(&DEFAULT_PORT_NAME) {
+                    idx_found = i;
+                    break;
+                };
+            }
+            in_ports
+                .get(idx_found)
+                .ok_or("invalid input port selected")
+                .unwrap()
+        }
     };
 
-    let rainout_run_opt = RunOptions {
-        use_application_name: Some(String::from("Blender Midi Rust")),
-        auto_audio_inputs: false,
-        midi_buffer_size: 1024,
-        check_for_silent_inputs: false,
-        must_have_stereo_output: false,
-        empty_buffers_for_failed_ports: false,
-        max_buffer_size: 1024,
-        msg_buffer_size: 512,
+    let out_ports = midi_out.ports();
+
+    let out_port: &MidiOutputPort = match out_ports.len() {
+        0 => return Err(ParamsInitError::InputPortNotfound),
+        _ => {
+            let mut idx_found: usize = 0;
+            for (i, p) in out_ports.iter().enumerate() {
+                let port_name = midi_out.port_name(p).unwrap();
+
+                if port_name.contains(&DEFAULT_PORT_NAME) {
+                    idx_found = i;
+                    break;
+                };
+            }
+            out_ports
+                .get(idx_found)
+                .ok_or("invalid input port selected")
+                .unwrap()
+        }
     };
+
+    println!("\nOpening connection");
+    let in_port_name = midi_in.port_name(&in_port).unwrap();
+
+    println!("Connection open, reading input from '{}'…", in_port_name);
 
     let parameters = AudioParams {
-        config: rainout_config,
-        run_opt: rainout_run_opt,
+        port_name: in_port_name,
+        midi_input: midi_in,
+        midi_input_port: in_port.clone(),
+        midi_output: midi_out,
+        midi_output_port: out_port.clone(),
+        cc_flag: CCflag::new(),
     };
 
     Ok(parameters)

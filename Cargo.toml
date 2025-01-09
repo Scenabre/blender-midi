@@ -5,11 +5,16 @@ edition = "2021"
 
 [dependencies]
 # rainout = { path = "deps/rainout", features = ["midi","jack-linux"]}
-clap = "4"
+# clap = "4"
 log = "*"
 simple_logger = "5"
 thiserror = "2"
 midir = { version = "0.10.1", features = ["jack"] }
+pyo3 = { version = ">=0.15", features = ["extension-module"] }
+
+[lib]
+name = "bl_interactive_midi"
+crate-type = ["cdylib"]
 
 # [dev-dependencies]
 # log = "*"
