@@ -2,21 +2,23 @@ import bpy
 import my_rust_lib
 from bpy.types import NodeTree, Node, NodeSocket, NodeTreeInterfaceSocket
 
+SOCKET_TYPE = 'MyCustomSocketType'
+
 # Derived from the NodeTree base type, similar to Menu, Operator, Panel, etc.
-class MyCustomTree(NodeTree):
+class MidiInteractiveTree(NodeTree):
     # Description string
     '''A custom node tree type that will show up in the editor type list'''
     # Optional identifier string. If not explicitly defined, the python class name is used.
-    bl_idname = 'CustomTreeType'
+    bl_idname = 'MidiInteractiveTree'
     # Label for nice name display
-    bl_label = "Custom Node Tree"
+    bl_label = "Midi Interactive Nodes"
     # Icon identifier
-    bl_icon = 'NODETREE'
+    bl_icon = 'LINK_BLEND'
 
 # Définir un socket personnalisé pour les entrées et la sortie
-class MyCustomSocket(bpy.types.NodeSocket):
+class MidiInteractiveSocket(bpy.types.NodeSocket):
     """Custom node socket type"""
-    bl_idname = 'MyCustomSocketType'
+    bl_idname = SOCKET_TYPE
     bl_label = 'Custom Socket'
 
     # Définir les propriétés du socket
@@ -34,11 +36,11 @@ class MyCustomSocket(bpy.types.NodeSocket):
         return (1.0, 0.4, 0.216, 0.5)
 
 # Customizable interface properties to generate a socket from.
-class MyCustomInterfaceSocket(NodeTreeInterfaceSocket):
+class MidiInteractiveInterfaceSocket(NodeTreeInterfaceSocket):
     # The type of socket that is generated.
-    bl_socket_idname = 'MyCustomSocketType'
+    bl_socket_idname = SOCKET_TYPE
 
-    default_value: bpy.props.FloatProperty(default=1.0, description="Default input value for new sockets",)
+    default_value: bpy.props.FloatProperty(default=1.0, description="Default input value for new sockets")
 
     def draw(self, context, layout):
         # Display properties of the interface.
@@ -55,10 +57,10 @@ class MyCustomInterfaceSocket(NodeTreeInterfaceSocket):
 
 # Mix-in class for all custom nodes in this tree type.
 # Defines a poll function to enable instantiation.
-class MyCustomTreeNode:
+class MidiInteractiveTreeNode:
     @classmethod
     def poll(cls, ntree):
-        return ntree.bl_idname == 'GeometryNodeTree'
+        return ntree.bl_idname == 'MidiInteractiveTree'
 
 # Définir un node personnalisé
 class MyCustomNode(Node):
@@ -116,8 +118,6 @@ classes = (
     MyCustomInterfaceSocket,
     MyCustomNode,
 )
-
-import bpy
 
 def draw_menu(self, context):
     print(context.area.ui_type)

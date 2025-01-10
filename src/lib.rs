@@ -20,7 +20,7 @@ fn sum_float_custom(a: f32, b: f32) -> PyResult<f32> {
 #[pymodule]
 fn bl_interactive_midi(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(sum_float_custom, m)?)?;
-    m.add_function(wrap_pyfunction!(midi_main::main, m)?)?;
+    m.add_function(wrap_pyfunction!(midi_main::init_midi_audio, m)?)?;
 
     Ok(())
 }
