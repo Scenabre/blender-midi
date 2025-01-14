@@ -1,8 +1,10 @@
 import bpy
 import my_rust_lib
-from bpy.types import NodeTree, Node, NodeSocket, NodeTreeInterfaceSocket
+from bpy.types import NodeTree, Node, NodeTreeInterfaceSocket
+from nodeitems_utils import NodeCategory, NodeItem, register_node_categories, unregister_node_categories
 
 SOCKET_TYPE = 'MyCustomSocketType'
+
 
 # Derived from the NodeTree base type, similar to Menu, Operator, Panel, etc.
 class MidiInteractiveTree(NodeTree):
@@ -14,6 +16,7 @@ class MidiInteractiveTree(NodeTree):
     bl_label = "Midi Interactive Nodes"
     # Icon identifier
     bl_icon = 'LINK_BLEND'
+
 
 # Définir un socket personnalisé pour les entrées et la sortie
 class MidiInteractiveSocket(bpy.types.NodeSocket):
@@ -35,6 +38,71 @@ class MidiInteractiveSocket(bpy.types.NodeSocket):
     def draw_color_simple(cls):
         return (1.0, 0.4, 0.216, 0.5)
 
+
+class MidiInteractivePanel(bpy.types.Panel):
+    """Creates a Panel in the scene context of the properties editor"""
+    bl_label = "Layout Demo"
+    bl_idname = "NODE_PT_MidiInteractiveTree"
+    bl_space_type = 'NODE_EDITOR'
+    bl_region_type = 'UI'
+    bl_category = 'Custom'
+
+    @classmethod
+    def poll(cls, context):
+        return context.space_data.tree_type == 'MidiInteractiveTree'
+
+    def draw(self, context):
+        layout = self.layout
+
+        scene = context.scene
+
+        # Create a simple row.
+        layout.label(text=" Simple Row:")
+
+        row = layout.row()
+        row.prop(scene, "frame_start")
+        row.prop(scene, "frame_end")
+
+        # Create an row where the buttons are aligned to each other.
+        layout.label(text=" Aligned Row:")
+
+        row = layout.row(align=True)
+        row.prop(scene, "frame_start")
+        row.prop(scene, "frame_end")
+
+        # Create two columns, by using a split layout.
+        split = layout.split()
+
+        # First column
+        col = split.column()
+        col.label(text="Column One:")
+        col.prop(scene, "frame_end")
+        col.prop(scene, "frame_start")
+
+        # Second column, aligned
+        col = split.column(align=True)
+        col.label(text="Column Two:")
+        col.prop(scene, "frame_start")
+        col.prop(scene, "frame_end")
+
+        # Big render button
+        layout.label(text="Big Button:")
+        row = layout.row()
+        row.scale_y = 3.0
+        row.operator("render.render")
+
+        # Different sizes in a row
+        layout.label(text="Different button sizes:")
+        row = layout.row(align=True)
+        row.operator("render.render")
+
+        sub = row.row()
+        sub.scale_x = 2.0
+        sub.operator("render.render")
+
+        row.operator("render.render")
+
+
 # Customizable interface properties to generate a socket from.
 class MidiInteractiveInterfaceSocket(NodeTreeInterfaceSocket):
     # The type of socket that is generated.
@@ -55,6 +123,7 @@ class MidiInteractiveInterfaceSocket(NodeTreeInterfaceSocket):
         # Current value of the socket becomes the default
         self.default_value = socket.my_custom_property
 
+
 # Mix-in class for all custom nodes in this tree type.
 # Defines a poll function to enable instantiation.
 class MidiInteractiveTreeNode:
@@ -62,8 +131,9 @@ class MidiInteractiveTreeNode:
     def poll(cls, ntree):
         return ntree.bl_idname == 'MidiInteractiveTree'
 
+
 # Définir un node personnalisé
-class MyCustomNode(Node):
+class MyCustomTestNode(Node):
     '''A custom node'''
     bl_idname = 'MyCustomNodeType'
     bl_label = 'Custom Node'
@@ -88,20 +158,17 @@ class MyCustomNode(Node):
         input_a = self.inputs['Input A'].my_custom_property
         input_b = self.inputs['Input B'].my_custom_property
         result = my_rust_lib.sum_float_custom(input_a, input_b)
-        print("Node compute : ",result)
+        print("Node compute : ", result)
         # self.outputs['Output'].my_custom_property = result
 
     def draw_label(self):
         return "I am a custom node"
 
-import nodeitems_utils
-from nodeitems_utils import NodeCategory, NodeItem
 
 class MyNodeCategory(NodeCategory):
     @classmethod
     def poll(cls, context):
-        print(context.space_data.tree_type)
-        return context.space_data.tree_type == 'GeometryNodeTree'
+        return context.space_data.tree_type == 'MidiInteractiveTree'
 
 
 # all categories in a list
@@ -114,17 +181,21 @@ node_categories = [
 ]
 
 classes = (
-    MyCustomSocket,
-    MyCustomInterfaceSocket,
-    MyCustomNode,
+    MidiInteractiveTree,
+    MidiInteractiveSocket,
+    MidiInteractiveInterfaceSocket,
+    MidiInteractivePanel,
+    MyCustomTestNode
 )
+
 
 def draw_menu(self, context):
     print(context.area.ui_type)
-    if context.area.ui_type == 'GeometryNodeTree':
+    if context.area.ui_type == 'MidiInteractiveTree':
         layout = self.layout
         layout.separator()
         layout.operator("node.duplicate_move", text="My new context menu item")
+
 
 def register():
     from bpy.utils import register_class
@@ -132,12 +203,12 @@ def register():
         register_class(cls)
 
     bpy.types.NODE_MT_context_menu.append(draw_menu)
-    # nodeitems_utils.register_node_categories('CUSTOM_NODES', node_categories)
+    register_node_categories('CUSTOM_NODES', node_categories)
 
 
 def unregister():
     bpy.types.NODE_MT_context_menu.remove(draw_menu)
-    # nodeitems_utils.unregister_node_categories('CUSTOM_NODES')
+    unregister_node_categories('CUSTOM_NODES')
 
     from bpy.utils import unregister_class
     for cls in reversed(classes):
