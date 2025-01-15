@@ -2,3 +2,4 @@
 Cargo.lock
 /deps/
 /bl_py/wheels/
+/bl_py/*.zip

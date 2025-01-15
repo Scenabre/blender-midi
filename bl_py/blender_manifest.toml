@@ -4,7 +4,7 @@ schema_version = "1.0.0"
 # Change the values according to your extension
 id = "bl_interactive_midi"
 version = "1.0.0"
-name = "Blender MIDI interacttive mode"
+name = "Blender MIDI interactive mode"
 tagline = "Use your MIDI device to control Blender and Geometry Node"
 maintainer = "Axel Polin <axel.polin@scenabre.art>"
 # Supported types: "add-on", "theme"

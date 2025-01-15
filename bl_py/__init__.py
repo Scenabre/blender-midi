@@ -19,12 +19,16 @@ def install_my_rust_lib():
     subprocess.check_call([sys.executable, "-m", "pip", "install", "--force-reinstall", wheel_path])
 
 
+def check_if_exists() -> bool:
+    subprocess.check_call([sys.executable, "-m", "pip", "list", "--disable-pip-version-check"])
+
+
 def menu_func(self, context):
     self.layout.operator(my_custom_node.MyCustomTestNode.bl_idname)
 
 
 def register():
-    install_my_rust_lib()
+    # install_my_rust_lib()
     my_custom_node.register()
 
 
