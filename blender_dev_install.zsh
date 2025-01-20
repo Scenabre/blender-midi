@@ -1,5 +1,12 @@
 #!/bin/zsh
 
+if [ $# -ne 2 ]; then
+  echo "Usage : $0 blender_install_dir"
+  exit
+fi
+
+cd mibl_py
+
 addon_id=$(grep -m 1 id blender_manifest.toml | cut -d '=' -f 2 | tr -d '"' | tr -d ' ')
 addon_version=$(grep -m 1 version blender_manifest.toml | cut -d '=' -f 2 | tr -d '"' | tr -d ' ')
 

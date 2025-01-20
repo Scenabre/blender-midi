@@ -1,14 +1,18 @@
-class MidiInteractivePanel(Panel):
+from bl_midi_interactive.node_tree.mi_node_tree import TREE_NAME
+from bpy.types import Panel
+
+
+class MI_BL_Panel(Panel):
     """Creates a Panel in the scene context of the properties editor"""
     bl_label = "Layout Demo"
-    bl_idname = "NODE_PT_MidiInteractiveTree"
+    bl_idname = "NODE_PT" + TREE_NAME
     bl_space_type = 'NODE_EDITOR'
     bl_region_type = 'UI'
     bl_category = 'Custom'
 
     @classmethod
     def poll(cls, context):
-        return context.space_data.tree_type == 'MidiInteractiveTree'
+        return context.space_data.tree_type == TREE_NAME
 
     def draw(self, context):
         layout = self.layout
@@ -60,4 +64,3 @@ class MidiInteractivePanel(Panel):
         sub.operator("render.render")
 
         row.operator("render.render")
-

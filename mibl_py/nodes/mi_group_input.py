@@ -1,9 +1,10 @@
 import bpy
 from bpy.types import Node
 
-class MidiInteractive_group_input(Node):
-    bl_idname = 'mi_group_input'
-    bl_label = 'MidiInteractive Group Input'
+
+class NODE_MI_BL_group_input(Node):
+    bl_idname = 'MidiInteractiveGroupInput'
+    bl_label = 'MI Group Input'
     bl_icon = 'INFO'
 
     def init(self, context):

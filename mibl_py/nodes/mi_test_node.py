@@ -1,4 +1,4 @@
-import my_rust_lib
+from mibllib import sum_float_custom
 from nodeitems_utils import NodeCategory, NodeItem, register_node_categories, unregister_node_categories
 
 # Définir un node personnalisé
@@ -26,7 +26,7 @@ class MyCustomTestNode(Node):
         # Mettre à jour le node
         input_a = self.inputs['Input A'].my_custom_property
         input_b = self.inputs['Input B'].my_custom_property
-        result = my_rust_lib.sum_float_custom(input_a, input_b)
+        result = sum_float_custom(input_a, input_b)
         print("Node compute : ", result)
         # self.outputs['Output'].my_custom_property = result
 

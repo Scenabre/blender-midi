@@ -1,5 +1,5 @@
-/target/
+/mibl_rs/target/
 Cargo.lock
-/deps/
-/bl_py/wheels/
-/bl_py/*.zip
+/mibl_rs/deps/
+/mibl_py/wheels/
+/mibl_py/*.zip

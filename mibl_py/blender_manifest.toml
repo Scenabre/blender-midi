@@ -2,7 +2,7 @@ schema_version = "1.0.0"
 
 # Example of manifest file for a Blender extension
 # Change the values according to your extension
-id = "bl_interactive_midi"
+id = "midi_interactive_bl"
 version = "1.0.0"
 name = "Blender MIDI interactive mode"
 tagline = "Use your MIDI device to control Blender and Geometry Node"

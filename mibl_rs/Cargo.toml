@@ -1,5 +1,5 @@
 [package]
-name = "blender-midi"
+name = "mibllib"
 version = "0.1.0"
 edition = "2021"
 
@@ -13,7 +13,7 @@ midir = { version = "0.10.1", features = ["jack"] }
 pyo3 = { version = ">=0.15", features = ["extension-module"] }
 
 [lib]
-name = "bl_interactive_midi"
+name = "mibllib"
 crate-type = ["cdylib"]
 
 # [dev-dependencies]
