@@ -1,34 +1,30 @@
 from mibllib import sum_float_custom
-from nodeitems_utils import NodeCategory, NodeItem, register_node_categories, unregister_node_categories
+from bpy.types import Node
+from nodeitems_utils import NodeCategory, NodeItem
 
-# Définir un node personnalisé
-class MyCustomTestNode(Node):
+
+class NODE_MI_BL_Test(Node):
     '''A custom node'''
-    bl_idname = 'MyCustomNodeType'
+    bl_idname = 'NODE_MI_BL_Test'
     bl_label = 'Custom Node'
     bl_icon = 'NODETREE'
 
     def init(self, context):
-        # Ajouter des sockets d'entrée et de sortie
-        self.inputs.new('MyCustomSocketType', "Input A")
-        self.inputs.new('MyCustomSocketType', "Input B")
-        self.outputs.new('MyCustomSocketType', "Output")
+        self.inputs.new('SOCKET_MI_BL_Test', "Input A")
+        self.inputs.new('SOCKET_MI_BL_Test', "Input B")
+        self.outputs.new('SOCKET_MI_BL_Test', "Output")
 
-    # Copy function to initialize a copied node from an existing one.
     def copy(self, node):
         print("Copying from node ", node)
 
-    # Free function to clean up on removal.
     def free(self):
         print("Removing node ", self, ", Goodbye!")
 
     def update(self):
-        # Mettre à jour le node
         input_a = self.inputs['Input A'].my_custom_property
         input_b = self.inputs['Input B'].my_custom_property
         result = sum_float_custom(input_a, input_b)
         print("Node compute : ", result)
-        # self.outputs['Output'].my_custom_property = result
 
     def draw_label(self):
         return "I am a custom node"

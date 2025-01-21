@@ -1,16 +1,18 @@
+from bpy.props import FloatProperty
 from bpy.types import NodeSocket, NodeTreeInterfaceSocket
 
-SOCKET_TYPE = 'MyCustomSocketType'
+SOCKET_TYPE = 'SOCKET_MI_BL_Test'
 
 
-# Définir un socket personnalisé pour les entrées et la sortie
-class MidiInteractiveSocket(NodeSocket):
-    """Custom node socket type"""
+class SOCKET_MI_BL_Test(NodeSocket):
+    """Just a custom socket type for test"""
     bl_idname = SOCKET_TYPE
-    bl_label = 'Custom Socket'
+    bl_label = 'mi_bl_socket_test'
 
-    # Définir les propriétés du socket
-    my_custom_property: bpy.props.FloatProperty(name="Custom Property", default=0.0)
+    my_custom_property: FloatProperty(
+        name="Custom Property",
+        default=0.0
+    )
 
     def draw(self, context, layout, node, text):
         if self.is_output or self.is_linked:
@@ -24,22 +26,19 @@ class MidiInteractiveSocket(NodeSocket):
         return (1.0, 0.4, 0.216, 0.5)
 
 
-# Customizable interface properties to generate a socket from.
-class MidiInteractiveInterfaceSocket(NodeTreeInterfaceSocket):
-    # The type of socket that is generated.
+class SOCKET_INT_MI_BL_Test(NodeTreeInterfaceSocket):
     bl_socket_idname = SOCKET_TYPE
 
-    default_value: bpy.props.FloatProperty(default=1.0, description="Default input value for new sockets")
+    default_value: FloatProperty(
+        default=1.0,
+        description="Default input value for new sockets"
+    )
 
     def draw(self, context, layout):
-        # Display properties of the interface.
         layout.prop(self, "default_value")
 
-    # Set properties of newly created sockets
     def init_socket(self, node, socket, data_path):
         socket.my_custom_property = self.default_value
 
-    # Use an existing socket to initialize the group interface
     def from_socket(self, node, socket):
-        # Current value of the socket becomes the default
         self.default_value = socket.my_custom_property

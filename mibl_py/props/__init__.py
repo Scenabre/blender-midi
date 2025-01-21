@@ -1,33 +1,14 @@
 from bpy.utils import register_class, unregister_class
-import os
-import importlib
-import inspect
-
-
-def query_all_classes():
-    current_dir = os.path.dirname(__file__)
-
-    classes = []
-
-    for filename in os.listdir(current_dir):
-        if filename.endswith('.py') and filename != '__init__.py':
-            module_name = f"{__name__}.{filename[:-3]}"
-            module = importlib.import_module(module_name)
-
-            for name, obj in inspect.getmembers(module, inspect.isclass):
-                if obj.__module__ == module_name:
-                    classes.append(obj)
-
-    return classes
+from bpy.types import Scene
+from bpy.props import PointerProperty
+from mi_props import PropsMiBl
 
 
 def register():
-    classes = query_all_classes()
-    for cls in classes:
-        register_class(cls)
+    register_class(PropsMiBl)
+    Scene.mibl = PointerProperty(type=PropsMiBl)
 
 
 def unregister():
-    classes = query_all_classes()
-    for cls in reversed(classes):
-        unregister_class(cls)
+    del Scene.mibl
+    unregister_class(PropsMiBl)

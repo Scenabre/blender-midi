@@ -3,7 +3,6 @@ from bpy.types import Node
 from bpy.props import StringProperty, EnumProperty
 
 
-# Define the custom node
 class NODE_MI_BL_set_attr(Node):
     bl_idname = 'MidiInteractiveStoreNamedAttribute'
     bl_label = 'MI Store Named Attribute'
