@@ -1,5 +1,4 @@
 use midir::MidiOutputConnection;
-use pyo3::prelude::*;
 use simple_logger::SimpleLogger;
 
 use crate::container::RawMidi;
@@ -7,7 +6,6 @@ use crate::midi_process_mesg::{process_midi_mesg, CCflag};
 use crate::midi_send_mesg::initialize_mc_device;
 use crate::setup_client_params::setup_client_params;
 
-#[pyfunction]
 pub fn init_midi_audio() {
     SimpleLogger::new()
         .with_level(log::LevelFilter::Debug)
