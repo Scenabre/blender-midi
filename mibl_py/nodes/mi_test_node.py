@@ -1,6 +1,5 @@
 from mibllib import sum_float_custom
 from bpy.types import Node
-from nodeitems_utils import NodeCategory, NodeItem
 
 
 class NODE_MI_BL_Test(Node):
