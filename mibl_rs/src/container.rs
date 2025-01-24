@@ -16,7 +16,7 @@ impl RawMidi {
     /// * `delta_frames` - The amount of time passed, in frames, relative to the start of the process cycle.
     /// * `data` - The raw bytes of the midi message.
     ///
-    /// This returns an error if the length of `data` is greater than `MAX_MIDI_MSG_SIZE` (8).
+    /// This returns an error if the length of `data` is greater than `MAX_MIDI_MSG_SIZE` (16).
     pub fn new(delta_frames: u64, data: &[u8]) -> Result<Self, usize> {
         if data.len() <= MAX_MIDI_MSG_SIZE {
             let mut cp_data = [0; MAX_MIDI_MSG_SIZE];
@@ -37,9 +37,30 @@ impl RawMidi {
         &self.data[0..usize::from(self.len)]
     }
 
+    /// Delta frames.
+    pub fn delta_frames(&self) -> &u64 {
+        &self.delta_frames
+    }
+
     /// The size of this MIDI message in bytes.
     pub fn len(&self) -> usize {
         usize::from(self.len)
+    }
+
+    /// Setter
+    pub fn set(&mut self, delta_frames: u64, data: &[u8]) -> Result<(), usize> {
+        if data.len() <= MAX_MIDI_MSG_SIZE {
+            let mut cp_data = [0; MAX_MIDI_MSG_SIZE];
+            cp_data[0..data.len()].copy_from_slice(data);
+
+            self.delta_frames = delta_frames;
+            self.data = cp_data;
+            self.len = cp_data.len() as u8;
+
+            Ok(())
+        } else {
+            Err(data.len())
+        }
     }
 }
 
