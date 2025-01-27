@@ -8,12 +8,13 @@ mibl_rs = mibllib.MiBlRustProcess()
 mibl_rs.set_tx(10, bytes(array))
 print("Testing Rust Struct content : ", list(mibl_rs.get_tx()))
 
+# mibl_rs.mi_start_server()
+
 # mibllib.mi_start_server(mibl_rs)
 
 # Start the MIDI server in a separate thread
 server_thread = threading.Thread(
-    target=mibllib.mi_start_server,
-    args=(mibl_rs,)
+    target=mibl_rs.mi_start_server()
 )
 
 # Periodically call get_rx
@@ -24,4 +25,4 @@ while True:
 
 server_thread.start()
 
-# time.sleep(30)
+time.sleep(30)
