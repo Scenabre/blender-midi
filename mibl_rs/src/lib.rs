@@ -1,8 +1,11 @@
 use container::RawMidi;
+use log::{info, logger};
+use midi_main::init_midi_audio;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
+use std::thread;
 
 mod container;
 mod midi_event;
@@ -11,7 +14,7 @@ mod midi_process_mesg;
 mod midi_send_mesg;
 mod setup_client_params;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[pyclass]
 struct MiBlRustProcess {
     tx: RawMidi,
@@ -38,8 +41,16 @@ impl MiBlRustProcess {
         self.rx.data()
     }
 
+    fn get_tx(&self) -> &[u8] {
+        self.tx.data()
+    }
+
     fn set_tx(&mut self, delta_frames: u64, data: &[u8]) {
         let _ = self.tx.set(delta_frames, data);
+    }
+
+    fn set_rx(&mut self, delta_frames: u64, data: &[u8]) {
+        let _ = self.rx.set(delta_frames, data);
     }
 }
 
@@ -50,17 +61,39 @@ fn sum_float_custom(a: f32, b: f32) -> PyResult<f32> {
 }
 
 #[pyfunction]
-fn mi_start_server() {
-    let midi_struct = MiBlRustProcess::new();
-    let midi_struct_arc = Arc::new(Mutex::new(midi_struct));
-    midi_main::init_midi_audio(midi_struct_arc);
+fn mi_start_server(mut_midi_struct: &mut MiBlRustProcess) {
+    //let midi_struct = MiBlRustProcess::new();
+    let midi_struct_arc = Arc::new(Mutex::new(mut_midi_struct.clone()));
+    //midi_main::init_midi_audio(midi_struct_arc);
+
+    // Debug print before the call
+    {
+        let midi_struct_locked = midi_struct_arc.lock().unwrap();
+        println!("Before init_midi_audio: {:?}", midi_struct_locked.get_rx());
+    }
+
+    // Clone the Arc to pass it to the new thread
+    let midi_struct_arc_clone = Arc::clone(&midi_struct_arc);
+
+    // Run the server in a separate thread
+    thread::spawn(move || {
+        println!("Starting midi server !");
+        //let mut midi_struct_locked = midi_struct_arc_clone.lock().unwrap();
+        init_midi_audio(midi_struct_arc.clone());
+    });
+
+    // Debug print after the call
+    {
+        let midi_struct_locked = midi_struct_arc.lock().unwrap();
+        println!("After init_midi_audio: {:?}", midi_struct_locked);
+    }
 }
 
 /// A Python module implemented in Rust. The name of this function must match
 /// the `lib.name` setting in the `Cargo.toml`, else Python will not be able to
 /// import the module.
 #[pymodule]
-fn bl_interactive_midi(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn mibllib(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<MiBlRustProcess>()?;
     m.add_function(wrap_pyfunction!(sum_float_custom, m)?)?;
     m.add_function(wrap_pyfunction!(mi_start_server, m)?)?;

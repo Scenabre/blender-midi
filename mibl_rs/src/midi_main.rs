@@ -57,11 +57,16 @@ pub fn init_midi_audio(midi_struct: Arc<Mutex<MiBlRustProcess>>) {
                         conn_out.as_mut(),
                         midi_datas,
                     );
+                    let midi_datas_locked = midi_datas.lock().unwrap();
+                    println!(
+                        "RX Datas from input_callback : {:?}",
+                        midi_datas_locked.get_rx()
+                    );
                 },
                 midi_struct,
             );
 
-            std::thread::sleep(std::time::Duration::from_secs(200));
+            std::thread::sleep(std::time::Duration::from_secs(20));
         }
         Err(e) => error!("{}", e),
     };
@@ -72,16 +77,21 @@ fn input_callback(
     mesg: &[u8],
     cc_flag: &mut CCflag,
     pass_trough: Option<&mut MidiOutputConnection>,
-    _midi_struct: &mut Arc<Mutex<MiBlRustProcess>>,
+    midi_struct: &mut Arc<Mutex<MiBlRustProcess>>,
 ) {
     let raw_midi = RawMidi::new(*stamp, mesg).unwrap();
 
     let midi_result = process_midi_mesg(stamp, &raw_midi, "MC", cc_flag);
 
+    // Update the rx field
+    let mut midi_struct_locked = midi_struct.lock().unwrap();
+    midi_struct_locked.set_rx(*stamp, mesg);
+
     match midi_result {
         Ok(mesg) => match mesg.to_send {
             Some(mesg) => {
                 info!("Connection out found! Midi mesg : {:04X?}", mesg.data());
+
                 match pass_trough.unwrap().send(mesg.data()) {
                     Ok(_) => (),
                     Err(err) => {
