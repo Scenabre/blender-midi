@@ -1,5 +1,5 @@
 bl_info = {
-    "name": "My Custom Node Addon",
+    "name": "Midi Interactive",
     "blender": (4, 4, 0),
     "category": "Node",
 }
@@ -49,6 +49,7 @@ def query_all_modules(attr):
         if is_pkg:
             module = importlib.import_module(f"{__name__}.{module_name}")
             if hasattr(module, attr):
+                print("Query module : ", module)
                 module.register()
 
 

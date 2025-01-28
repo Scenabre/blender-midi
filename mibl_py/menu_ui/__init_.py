@@ -19,6 +19,7 @@ def query_all_classes():
             module = importlib.import_module(module_name)
 
             for name, obj in inspect.getmembers(module, inspect.isclass):
+                print("Query class : ", name)
                 if obj.__module__ == module_name:
                     classes.append(obj)
 
@@ -28,12 +29,16 @@ def query_all_classes():
 def register():
     classes = query_all_classes()
     for cls in classes:
-        register_class(cls)
+        if hasattr(cls, 'bl_idname'):
+            print("Register class : ", cls.__name__)
+            register_class(cls)
     NODE_MT_add.prepend(menu_func)
 
 
 def unregister():
     classes = query_all_classes()
     for cls in reversed(classes):
-        unregister_class(cls)
+        if hasattr(cls, 'bl_idname'):
+            print("Register class : ", cls.__name__)
+            unregister_class(cls)
     NODE_MT_add.remove(menu_func)

@@ -1,11 +1,23 @@
-from mibllib import mi_start_server, mi_stop_server, mi_get_midi_mesg, mi_set_midi_mesg
+# from mibllib import mi_start_server, mi_stop_server, mi_get_midi_mesg, mi_set_midi_mesg
 from bpy.types import Operator
 from bpy.app import timers
-from bpy.context import scene
+from bpy import context as C
+
+
+def mi_get_midi_mesg():
+    print("Call to mi_get_midi_mesg")
+
+
+def mi_start_server():
+    print("Call to mi_start_server")
+
+
+def mi_stop_server():
+    print("Call to mi_stop_server")
 
 
 def update_midi_value():
-    scene.mibl.mi_input_mesg = mi_get_midi_mesg()
+    C.scene.mibl.mi_input_mesg = mi_get_midi_mesg()
     return 1.0  # Update Interval 1s
 
 
@@ -31,7 +43,7 @@ class MI_BL_OT_start_server(Operator):
     bl_idname = "mibl.start_server"
 
     def execute(self, context):
-        start_server(scene)
+        start_server(C.scene)
         return {'FINISHED'}
 
 
@@ -40,5 +52,5 @@ class MI_BL_OT_stop_server(Operator):
     bl_idname = "mibl.stop_server"
 
     def execute(self, context):
-        stop_server(scene)
+        stop_server(C.scene)
         return {'FINISHED'}

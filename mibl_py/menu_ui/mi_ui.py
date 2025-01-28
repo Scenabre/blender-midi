@@ -52,6 +52,11 @@ class NODE_MT_MidiInteractive_add_all(Menu):
         layout.menu("NODE_MT_MidiInteractive_MIDI_TEST")
         layout.separator()
         layout.menu("NODE_MT_MidiInteractive_GEO_SHARED")
+        layout.separator()
+        layout.menu("NODE_MT_category_GEO_UTILITIES_ROTATION")
+        layout.menu("NODE_MT_category_utilities_matrix")
+        layout.menu("NODE_MT_category_GEO_UTILITIES_MATH")
+        layout.menu("NODE_MT_category_GEO_UTILITIES_ROTATION")
 
 
 # # all categories in a list

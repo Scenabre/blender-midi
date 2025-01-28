@@ -1,7 +1,7 @@
 from bpy.utils import register_class, unregister_class
 from bpy.types import Scene
 from bpy.props import PointerProperty
-from mi_props import PropsMiBl
+from .mi_props import PropsMiBl
 
 
 def register():

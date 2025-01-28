@@ -1,4 +1,5 @@
-from bpy.types import NodeTree, NodeCategory
+from bpy.types import NodeTree
+from nodeitems_utils import NodeCategory
 
 TREE_NAME = 'MidiInteractiveTree'
 

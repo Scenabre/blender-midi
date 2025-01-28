@@ -1,5 +1,9 @@
-from mibllib import sum_float_custom
+# from mibllib import sum_float_custom
 from bpy.types import Node
+
+
+def sum_float_custom(a, b):
+    pass
 
 
 class NODE_MI_BL_Test(Node):
