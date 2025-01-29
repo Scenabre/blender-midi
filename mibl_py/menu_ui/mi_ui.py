@@ -1,4 +1,4 @@
-from bl_midi_interactive.node_tree.mi_node_tree import TREE_NAME
+from ..node_tree.mi_node_tree import TREE_NAME
 from bpy.types import Menu
 from bl_ui import node_add_menu
 
@@ -45,7 +45,7 @@ class NODE_MT_MidiInteractive_GEO_SHARED(Menu):
 
 class NODE_MT_MidiInteractive_add_all(Menu):
     bl_idname = "NODE_MT_MidiInteractive_add_all"
-    bl_label = "Utils"
+    bl_label = ''
 
     def draw(self, context):
         layout = self.layout

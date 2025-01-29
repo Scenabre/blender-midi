@@ -16,7 +16,7 @@ def query_all_classes():
 
             for name, obj in inspect.getmembers(module, inspect.isclass):
                 print("Query class : ", name)
-                if obj.__module__ == module_name:
+                if obj.__module__ == module_name and (hasattr(obj, 'bl_idname') or hasattr(obj, 'bl_socket_idname')):
                     classes.append(obj)
 
     return classes
@@ -25,14 +25,12 @@ def query_all_classes():
 def register():
     classes = query_all_classes()
     for cls in classes:
-        if hasattr(cls, 'bl_idname'):
-            print("Register class : ", cls.__name__)
-            register_class(cls)
+        print("Register class : ", cls.__name__)
+        register_class(cls)
 
 
 def unregister():
     classes = query_all_classes()
     for cls in reversed(classes):
-        if hasattr(cls, 'bl_idname'):
-            print("Register class : ", cls.__name__)
-            unregister_class(cls)
+        print("Unregister class : ", cls.__name__)
+        unregister_class(cls)

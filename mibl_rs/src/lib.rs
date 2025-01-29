@@ -54,8 +54,7 @@ impl MiBlRustProcess {
     }
 
     fn mi_start_server(&mut self) {
-        let midi_struct = self;
-        let midi_struct_arc = Arc::new(Mutex::new(midi_struct.clone()));
+        let midi_struct_arc = Arc::new(Mutex::new(self));
         //midi_main::init_midi_audio(midi_struct_arc);
 
         // Debug print before the call

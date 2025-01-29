@@ -1,4 +1,4 @@
-from bl_midi_interactive.node_tree.mi_node_tree import TREE_NAME
+from ..node_tree.mi_node_tree import TREE_NAME
 from bpy.types import Panel
 
 

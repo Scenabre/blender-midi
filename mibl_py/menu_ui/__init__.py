@@ -5,7 +5,7 @@ import os
 import importlib
 import inspect
 
-from mi_ui import menu_func
+from .mi_ui import menu_func
 
 
 def query_all_classes():
@@ -20,7 +20,7 @@ def query_all_classes():
 
             for name, obj in inspect.getmembers(module, inspect.isclass):
                 print("Query class : ", name)
-                if obj.__module__ == module_name:
+                if obj.__module__ == module_name and hasattr(obj, 'bl_idname'):
                     classes.append(obj)
 
     return classes
@@ -29,16 +29,14 @@ def query_all_classes():
 def register():
     classes = query_all_classes()
     for cls in classes:
-        if hasattr(cls, 'bl_idname'):
-            print("Register class : ", cls.__name__)
-            register_class(cls)
+        print("Register class : ", cls.__name__)
+        register_class(cls)
     NODE_MT_add.prepend(menu_func)
 
 
 def unregister():
     classes = query_all_classes()
-    for cls in reversed(classes):
-        if hasattr(cls, 'bl_idname'):
-            print("Register class : ", cls.__name__)
-            unregister_class(cls)
     NODE_MT_add.remove(menu_func)
+    for cls in reversed(classes):
+        print("Unregister class : ", cls.__name__)
+        unregister_class(cls)

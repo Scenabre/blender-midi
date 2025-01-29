@@ -29,7 +29,7 @@ class MI_BL_NodeCategory(NodeCategory):
 
 # def draw_menu(self, context):
 #     print(context.area.ui_type)
-#     if context.area.ui_type == 'MidiInteractiveTree':
+#     if context.area.ui_type == TREE_NAME:
 #         layout = self.layout
 #         layout.separator()
 #         layout.operator("node.duplicate_move",
