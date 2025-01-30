@@ -1,18 +1,14 @@
-use container::RawMidi;
-use log::{info, logger};
-use midi_main::init_midi_audio;
-use pyo3::exceptions::PyRuntimeError;
+use crate::midi_server::container::RawMidi;
+//use log::{info, logger};
+use crate::midi_server::midi_main::init_midi_audio;
+//use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
-use std::sync::mpsc;
+//use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-mod container;
-mod midi_event;
-mod midi_main;
-mod midi_process_mesg;
-mod midi_send_mesg;
-mod setup_client_params;
+mod midi_server;
+mod node_utils;
 
 #[derive(Clone, Debug)]
 #[pyclass]
