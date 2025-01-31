@@ -1,11 +1,8 @@
-use log::debug;
-//use rainout::{MidiControlScheme, Backend, RainoutConfig, RunOptions, AutoOption, MidiPortConfig, MidiConfig, AudioDeviceConfig};
 use midir::{Ignore, MidiInput, MidiInputPort, MidiOutput, MidiOutputPort};
-use std::io::{stdin, stdout, Write};
 
 use thiserror::Error;
 
-use crate::midi_process_mesg::CCflag;
+use crate::midi_server::midi_process_mesg::CCflag;
 
 pub struct AudioParams {
     pub port_name: String,

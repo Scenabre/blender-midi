@@ -1,5 +1,5 @@
-use crate::container::RawMidi;
-use crate::midi_event::trigger_midi_events;
+use crate::midi_server::container::RawMidi;
+use crate::midi_server::midi_event::trigger_midi_events;
 //use rainout::{ProcessInfo, RawMidi};
 
 #[derive(Debug, Clone)]

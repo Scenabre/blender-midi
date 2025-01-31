@@ -1,14 +1,14 @@
 use log::{error, info};
-use midir::{MidiInputConnection, MidiOutputConnection};
+use midir::MidiOutputConnection;
 use simple_logger::SimpleLogger;
-use std::sync::mpsc;
 
-use crate::container::RawMidi;
-use crate::midi_process_mesg::{process_midi_mesg, CCflag};
-use crate::midi_send_mesg::initialize_mc_device;
-use crate::setup_client_params::setup_client_params;
+use crate::midi_server::container::RawMidi;
+use crate::midi_server::midi_process_mesg::{process_midi_mesg, CCflag};
+use crate::midi_server::midi_send_mesg::initialize_mc_device;
+use crate::midi_server::setup_client_params::setup_client_params;
 use crate::MiBlRustProcess;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 pub fn init_midi_audio(midi_struct: Arc<Mutex<MiBlRustProcess>>) {
     SimpleLogger::new()
@@ -60,13 +60,22 @@ pub fn init_midi_audio(midi_struct: Arc<Mutex<MiBlRustProcess>>) {
                     let midi_datas_locked = midi_datas.lock().unwrap();
                     println!(
                         "RX Datas from input_callback : {:?}",
-                        midi_datas_locked.get_rx()
+                        midi_datas_locked.get_rx_data()
                     );
                 },
                 midi_struct,
             );
 
-            std::thread::sleep(std::time::Duration::from_secs(20));
+            //let mut count: i32 = 0;
+            //
+            //while !(midi_struct.lock().unwrap().get_signal()) {
+            //    println!("In loop !");
+            //    std::thread::sleep(Duration::from_secs(5));
+            //    midi_struct.lock().unwrap().toggle_close_thread();
+            //    count += 1;
+            //}
+
+            std::thread::sleep(Duration::from_secs(10));
         }
         Err(e) => error!("{}", e),
     };

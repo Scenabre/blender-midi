@@ -1,11 +1,10 @@
 use crate::midi_server::container::RawMidi;
 //use log::{info, logger};
 use crate::midi_server::midi_main::init_midi_audio;
-//use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
-//use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::{Duration, Instant};
 
 mod midi_server;
 mod node_utils;
@@ -15,7 +14,7 @@ mod node_utils;
 struct MiBlRustProcess {
     tx: RawMidi,
     rx: RawMidi,
-    need_update: bool,
+    close_thread: bool,
 }
 
 #[pymethods]
@@ -24,21 +23,29 @@ impl MiBlRustProcess {
     fn new() -> Self {
         let tx = RawMidi::default();
         let rx = RawMidi::default();
-        let need_update = false;
+        let close_thread = false;
 
         MiBlRustProcess {
             tx,
             rx,
-            need_update,
+            close_thread,
         }
     }
 
-    fn get_rx(&self) -> &[u8] {
+    fn get_rx_data(&self) -> &[u8] {
         self.rx.data()
     }
 
-    fn get_tx(&self) -> &[u8] {
+    fn get_rx_stamp(&self) -> u64 {
+        self.rx.delta_frames
+    }
+
+    fn get_tx_data(&self) -> &[u8] {
         self.tx.data()
+    }
+
+    fn get_tx_stamp(&self) -> u64 {
+        self.tx.delta_frames
     }
 
     fn set_tx(&mut self, delta_frames: u64, data: &[u8]) {
@@ -49,28 +56,60 @@ impl MiBlRustProcess {
         let _ = self.rx.set(delta_frames, data);
     }
 
-    fn mi_start_server(&mut self) {
-        let midi_struct_arc = Arc::new(Mutex::new(self));
-        //midi_main::init_midi_audio(midi_struct_arc);
+    fn toggle_close_thread(&mut self) {
+        self.close_thread = !self.close_thread;
+    }
 
-        // Debug print before the call
+    fn get_signal(&self) -> bool {
+        self.close_thread
+    }
+
+    fn mi_start_server(&mut self) {
+        let midi_struct = MiBlRustProcess::new();
+        let midi_struct_arc = Arc::new(Mutex::new(midi_struct));
+
+        let duration = Duration::new(10, 0);
+        let start = Instant::now();
+
         {
             let midi_struct_locked = midi_struct_arc.lock().unwrap();
-            println!("Before init_midi_audio: {:?}", midi_struct_locked.get_rx());
+            println!(
+                "Before init_midi_audio: {:?}",
+                midi_struct_locked.get_rx_data()
+            );
         }
 
-        // Clone the Arc to pass it to the new thread
         let midi_struct_arc_clone = Arc::clone(&midi_struct_arc);
 
-        // Run the server in a separate thread
         thread::spawn(move || {
             println!("Starting midi server !");
             init_midi_audio(midi_struct_arc_clone);
         });
 
-        //init_midi_audio(midi_struct_arc.clone());
+        let mut count: i32 = 0;
 
-        // Debug print after the call
+        loop {
+            if start.elapsed() >= duration {
+                break;
+            }
+
+            println!("Get value from thread {:?}", self.get_rx_data());
+
+            self.set_rx(
+                midi_struct_arc.lock().unwrap().get_rx_stamp(),
+                midi_struct_arc.lock().unwrap().get_rx_data(),
+            );
+
+            self.set_tx(
+                midi_struct_arc.lock().unwrap().get_tx_stamp(),
+                midi_struct_arc.lock().unwrap().get_tx_data(),
+            );
+
+            std::thread::sleep(Duration::from_millis(100));
+
+            count += 1;
+        }
+
         {
             let midi_struct_locked = midi_struct_arc.lock().unwrap();
             println!("After init_midi_audio: {:?}", midi_struct_locked);
@@ -78,7 +117,6 @@ impl MiBlRustProcess {
     }
 }
 
-/// Formats the sum of two numbers as string.
 #[pyfunction]
 fn sum_float_custom(a: f32, b: f32) -> PyResult<f32> {
     Ok(a + b)

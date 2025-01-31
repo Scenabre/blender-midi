@@ -1,5 +1,5 @@
-use crate::container::{RawMidi, MAX_MIDI_MSG_SIZE};
-use crate::midi_send_mesg::{convert_value_to_lsb_msb, make_raw_midi_mesg};
+use crate::midi_server::container::{RawMidi, MAX_MIDI_MSG_SIZE};
+use crate::midi_server::midi_send_mesg::{convert_value_to_lsb_msb, make_raw_midi_mesg};
 
 const SIZE: usize = 16;
 const EPSILON: f32 = 0.01;
