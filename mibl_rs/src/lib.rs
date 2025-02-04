@@ -1,5 +1,4 @@
 use crate::midi_server::container::RawMidi;
-//use log::{info, logger};
 use crate::midi_server::midi_main::init_midi_audio;
 use pyo3::prelude::*;
 use std::sync::{Arc, Mutex};
@@ -67,6 +66,7 @@ impl MiBlRustProcess {
     fn mi_start_server(&mut self) {
         let midi_struct = MiBlRustProcess::new();
         let midi_struct_arc = Arc::new(Mutex::new(midi_struct));
+        let midi_struct_arc_clone = Arc::clone(&midi_struct_arc);
 
         let duration = Duration::new(10, 0);
         let start = Instant::now();
@@ -79,8 +79,6 @@ impl MiBlRustProcess {
             );
         }
 
-        let midi_struct_arc_clone = Arc::clone(&midi_struct_arc);
-
         thread::spawn(move || {
             println!("Starting midi server !");
             init_midi_audio(midi_struct_arc_clone);
@@ -89,21 +87,26 @@ impl MiBlRustProcess {
         let mut count: i32 = 0;
 
         loop {
+            println!("Loop #{}", count);
             if start.elapsed() >= duration {
                 break;
             }
 
-            println!("Get value from thread {:?}", self.get_rx_data());
+            {
+                let midi_struct_locked = midi_struct_arc.lock().unwrap();
 
-            self.set_rx(
-                midi_struct_arc.lock().unwrap().get_rx_stamp(),
-                midi_struct_arc.lock().unwrap().get_rx_data(),
-            );
+                println!("Get value from thread {:?}", self.get_rx_data());
 
-            self.set_tx(
-                midi_struct_arc.lock().unwrap().get_tx_stamp(),
-                midi_struct_arc.lock().unwrap().get_tx_data(),
-            );
+                self.set_rx(
+                    midi_struct_locked.get_rx_stamp(),
+                    midi_struct_locked.get_rx_data(),
+                );
+
+                self.set_tx(
+                    midi_struct_locked.get_tx_stamp(),
+                    midi_struct_locked.get_tx_data(),
+                );
+            }
 
             std::thread::sleep(Duration::from_millis(100));
 
