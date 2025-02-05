@@ -1,6 +1,7 @@
 use crate::midi_server::container::RawMidi;
 use crate::midi_server::midi_main::init_midi_audio;
 use pyo3::prelude::*;
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -71,6 +72,9 @@ impl MiBlRustProcess {
         let duration = Duration::new(10, 0);
         let start = Instant::now();
 
+        let (tx_channel_rx, rx_channel_rx) = channel::<u64>();
+        let (tx_channel_tx, rx_channel_tx) = channel::<u64>();
+
         {
             let midi_struct_locked = midi_struct_arc.lock().unwrap();
             println!(
@@ -81,32 +85,39 @@ impl MiBlRustProcess {
 
         thread::spawn(move || {
             println!("Starting midi server !");
-            init_midi_audio(midi_struct_arc_clone);
+            init_midi_audio(midi_struct_arc_clone, tx_channel_rx, tx_channel_tx);
         });
 
         let mut count: i32 = 0;
 
         loop {
-            println!("Loop #{}", count);
+            let data_rx = rx_channel_rx.recv().unwrap();
+            let data_tx = rx_channel_tx.recv().unwrap();
+
+            println!("Channel receive from RX : {}", data_rx);
+            println!("Channel receive from TX : {}", data_tx);
+
             if start.elapsed() >= duration {
                 break;
             }
 
-            {
-                let midi_struct_locked = midi_struct_arc.lock().unwrap();
+            println!("Loop #{}", count);
 
-                println!("Get value from thread {:?}", self.get_rx_data());
-
-                self.set_rx(
-                    midi_struct_locked.get_rx_stamp(),
-                    midi_struct_locked.get_rx_data(),
-                );
-
-                self.set_tx(
-                    midi_struct_locked.get_tx_stamp(),
-                    midi_struct_locked.get_tx_data(),
-                );
-            }
+            //{
+            //    let midi_struct_locked = midi_struct_arc.lock().unwrap();
+            //
+            //    println!("Get value from thread {:?}", self.get_rx_data());
+            //
+            //    self.set_rx(
+            //        midi_struct_locked.get_rx_stamp(),
+            //        midi_struct_locked.get_rx_data(),
+            //    );
+            //
+            //    self.set_tx(
+            //        midi_struct_locked.get_tx_stamp(),
+            //        midi_struct_locked.get_tx_data(),
+            //    );
+            //}
 
             std::thread::sleep(Duration::from_millis(100));
 
