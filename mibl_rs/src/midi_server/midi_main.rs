@@ -11,7 +11,7 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-pub fn init_midi_audio(midi_struct: Arc<Mutex<MiBlRustProcess>>, rx: Sender<u64>, tx: Sender<u64>) {
+pub fn init_midi_audio(tx: Sender<u64>, rx: Sender<u64>) {
     SimpleLogger::new()
         .with_level(log::LevelFilter::Debug)
         .init()
@@ -51,24 +51,24 @@ pub fn init_midi_audio(midi_struct: Arc<Mutex<MiBlRustProcess>>, rx: Sender<u64>
                 &params.midi_input_port,
                 "bl-midi-in",
                 move |stamp, message, midi_datas| {
-                    //println!("IN test : {:?}, {:?}", stamp, message);
-                    midi_datas[0].send(stamp).unwrap();
-                    midi_datas[1].send(stamp).unwrap();
-                    input_callback(
-                        &stamp,
-                        message,
-                        &mut params.cc_flag,
-                        conn_out.as_mut(),
-                        &midi_datas[0],
-                        &midi_datas[1],
-                    );
+                    println!("IN test : {:?}, {:?}", stamp, message);
+                    //let test = RawMidi::new(stamp, message).unwrap();
+                    midi_datas.send(stamp).unwrap();
+                    //input_callback(
+                    //    &stamp,
+                    //    message,
+                    //    &mut params.cc_flag,
+                    //    conn_out.as_mut(),
+                    //    &midi_datas[0],
+                    //    &midi_datas[1],
+                    //);
                     //let midi_datas_locked = midi_datas.lock().unwrap();
                     //println!(
                     //    "RX Datas from input_callback : {:?}",
                     //    midi_datas_locked.get_rx_data()
                     //);
                 },
-                [rx, tx],
+                rx,
             );
 
             //let mut count: i32 = 0;

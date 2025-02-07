@@ -11,6 +11,7 @@ simple_logger = "5"
 thiserror = "2"
 midir = { version = "0.10.1", features = ["jack"] }
 pyo3 = { version = ">=0.15", features = ["extension-module"] }
+rand = "*"
 
 [lib]
 name = "mibllib"

@@ -96,7 +96,7 @@ pub fn map_range(
 
     let mut result: f32;
 
-    if value >= -BLENDER_ZMAX && value <= BLENDER_ZMAX {
+    if (-BLENDER_ZMAX..=BLENDER_ZMAX).contains(&value) {
         result = (value - from_min) / (from_max - from_min);
         result = to_min + result * (to_max - to_min);
     } else if value > BLENDER_ZMAX {
@@ -106,11 +106,7 @@ pub fn map_range(
     }
 
     if clamp {
-        if to_max > to_min {
-            result = result.clamp(to_min, to_max);
-        } else {
-            result = result.clamp(to_min, to_max);
-        }
+        result = result.clamp(to_min, to_max);
     }
 
     result

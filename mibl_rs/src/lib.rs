@@ -1,139 +1,225 @@
-use crate::midi_server::container::RawMidi;
+use crate::midi_server::container::{RawMidi, MAX_MIDI_MSG_SIZE};
 use crate::midi_server::midi_main::init_midi_audio;
 use pyo3::prelude::*;
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
-use std::thread;
+use std::thread::{sleep, spawn};
 use std::time::{Duration, Instant};
 
 mod midi_server;
 mod node_utils;
 
 #[derive(Clone, Debug)]
-#[pyclass]
-struct MiBlRustProcess {
-    tx: RawMidi,
-    rx: RawMidi,
+struct MiBlRustProcessInner {
+    tx_data: [u8; MAX_MIDI_MSG_SIZE],
+    rx_data: [u8; MAX_MIDI_MSG_SIZE],
+    rx_stamp: u64,
+    rx_len: u8,
     close_thread: bool,
+}
+
+impl MiBlRustProcessInner {
+    fn new() -> Self {
+        let close_thread = false;
+
+        MiBlRustProcessInner {
+            tx_data: [0; MAX_MIDI_MSG_SIZE],
+            rx_data: [0; MAX_MIDI_MSG_SIZE],
+            rx_stamp: 0,
+            rx_len: 0,
+            close_thread,
+        }
+    }
+}
+
+#[pyclass(frozen)]
+struct MiBlRustProcess {
+    inner: Mutex<MiBlRustProcessInner>,
 }
 
 #[pymethods]
 impl MiBlRustProcess {
     #[new]
     fn new() -> Self {
-        let tx = RawMidi::default();
-        let rx = RawMidi::default();
-        let close_thread = false;
+        let mibl = Mutex::new(MiBlRustProcessInner::new());
 
-        MiBlRustProcess {
-            tx,
-            rx,
-            close_thread,
-        }
+        MiBlRustProcess { inner: mibl }
     }
 
-    fn get_rx_data(&self) -> &[u8] {
-        self.rx.data()
-    }
+    //fn get_rx_data(&self) -> [u8; MAX_MIDI_MSG_SIZE] {
+    //    self.rx_data
+    //}
 
     fn get_rx_stamp(&self) -> u64 {
-        self.rx.delta_frames
+        self.inner.lock().expect("lock not poisoned").rx_stamp
     }
 
-    fn get_tx_data(&self) -> &[u8] {
-        self.tx.data()
+    fn set_rx_stamp(&self, stamp: u64) {
+        self.inner.lock().expect("lock not poisoned").rx_stamp = stamp;
     }
 
-    fn get_tx_stamp(&self) -> u64 {
-        self.tx.delta_frames
-    }
+    //fn set_rx(&mut self, stamp: u64, rx_data: [u8; MAX_MIDI_MSG_SIZE]) {
+    //    self.rx_stamp = stamp;
+    //    self.rx_data = rx_data;
+    //}
 
-    fn set_tx(&mut self, delta_frames: u64, data: &[u8]) {
-        let _ = self.tx.set(delta_frames, data);
-    }
+    //fn get_rx_stamp(&self) -> Vec<u64> {
+    //    let mut stamps: Vec<u64> = Vec::new();
+    //    while let Ok(mesg) = self.rx.try_recv() {
+    //        stamps.push(mesg.delta_frames);
+    //    }
+    //    stamps
+    //}
 
-    fn set_rx(&mut self, delta_frames: u64, data: &[u8]) {
-        let _ = self.rx.set(delta_frames, data);
-    }
+    //fn get_tx_data(&self) -> &[u8] {
+    //    self.tx.data()
+    //}
+    //
+    //fn get_tx_stamp(&self) -> u64 {
+    //    self.tx.delta_frames
+    //}
+    //
+    //fn set_tx(&mut self, delta_frames: u64, data: &[u8]) {
+    //    let _ = self.tx.set(delta_frames, data);
+    //}
+    //
+    //fn set_rx(&mut self, delta_frames: u64, data: &[u8]) {
+    //    let _ = self.rx.set(delta_frames, data);
+    //}
 
-    fn toggle_close_thread(&mut self) {
-        self.close_thread = !self.close_thread;
-    }
+    //fn toggle_close_thread(&mut self) {
+    //    self.close_thread = !self.close_thread;
+    //}
+    //
+    //fn get_signal(&self) -> bool {
+    //    self.close_thread
+    //}
 
-    fn get_signal(&self) -> bool {
-        self.close_thread
-    }
-
-    fn mi_start_server(&mut self) {
-        let midi_struct = MiBlRustProcess::new();
-        let midi_struct_arc = Arc::new(Mutex::new(midi_struct));
-        let midi_struct_arc_clone = Arc::clone(&midi_struct_arc);
-
-        let duration = Duration::new(10, 0);
-        let start = Instant::now();
-
-        let (tx_channel_rx, rx_channel_rx) = channel::<u64>();
-        let (tx_channel_tx, rx_channel_tx) = channel::<u64>();
-
-        {
-            let midi_struct_locked = midi_struct_arc.lock().unwrap();
-            println!(
-                "Before init_midi_audio: {:?}",
-                midi_struct_locked.get_rx_data()
-            );
-        }
-
-        thread::spawn(move || {
-            println!("Starting midi server !");
-            init_midi_audio(midi_struct_arc_clone, tx_channel_rx, tx_channel_tx);
-        });
-
-        let mut count: i32 = 0;
-
-        loop {
-            let data_rx = rx_channel_rx.recv().unwrap();
-            let data_tx = rx_channel_tx.recv().unwrap();
-
-            println!("Channel receive from RX : {}", data_rx);
-            println!("Channel receive from TX : {}", data_tx);
-
-            if start.elapsed() >= duration {
-                break;
-            }
-
-            println!("Loop #{}", count);
-
-            //{
-            //    let midi_struct_locked = midi_struct_arc.lock().unwrap();
-            //
-            //    println!("Get value from thread {:?}", self.get_rx_data());
-            //
-            //    self.set_rx(
-            //        midi_struct_locked.get_rx_stamp(),
-            //        midi_struct_locked.get_rx_data(),
-            //    );
-            //
-            //    self.set_tx(
-            //        midi_struct_locked.get_tx_stamp(),
-            //        midi_struct_locked.get_tx_data(),
-            //    );
-            //}
-
-            std::thread::sleep(Duration::from_millis(100));
-
-            count += 1;
-        }
-
-        {
-            let midi_struct_locked = midi_struct_arc.lock().unwrap();
-            println!("After init_midi_audio: {:?}", midi_struct_locked);
-        }
+    fn mi_start_server_allow_thread(&self, py: Python) {
+        py.allow_threads(|| mi_start_server(self));
     }
 }
 
+fn mi_start_server(mibl: &MiBlRustProcess) {
+    //let duration = Duration::new(10, 0);
+    //let start = Instant::now();
+
+    let (tx_channel_rx, rx_channel_rx) = channel::<u64>();
+    let (tx_channel_tx, rx_channel_tx) = channel::<u64>();
+    let mut last_stamp = 0;
+
+    spawn(move || {
+        let sender_rx = tx_channel_rx.clone();
+        let sender_tx = tx_channel_tx.clone();
+
+        init_midi_audio(sender_tx, sender_rx);
+    });
+
+    loop {
+        for i in rx_channel_rx.recv().iter() {
+            mibl.set_rx_stamp(*i);
+        }
+        sleep(Duration::from_millis(100));
+    }
+}
+
+// MATH FUNCIONS
+
 #[pyfunction]
-fn sum_float_custom(a: f32, b: f32) -> PyResult<f32> {
-    Ok(a + b)
+fn mibl_add(a: f32, b: f32) -> f32 {
+    node_utils::math::add(a, b)
+}
+
+#[pyfunction]
+fn mibl_multiply(a: f32, b: f32) -> f32 {
+    node_utils::math::multiply(a, b)
+}
+
+#[pyfunction]
+fn mibl_divide(a: f32, b: f32) -> f32 {
+    node_utils::math::divide(a, b)
+}
+
+#[pyfunction]
+fn mibl_abs(a: f32) -> f32 {
+    node_utils::math::abs(a)
+}
+
+#[pyfunction]
+fn mibl_mul_add(a: f32, b: f32, c: f32) -> f32 {
+    node_utils::math::mul_add(a, b, c)
+}
+
+#[pyfunction]
+fn mibl_pow(a: f32, n: f32) -> f32 {
+    node_utils::math::pow(a, n)
+}
+
+#[pyfunction]
+fn mibl_log(a: f32, n: f32) -> f32 {
+    node_utils::math::log(a, n)
+}
+
+#[pyfunction]
+fn mibl_exp(a: f32) -> f32 {
+    node_utils::math::exp(a)
+}
+
+#[pyfunction]
+fn mibl_sqrt(a: f32) -> f32 {
+    node_utils::math::sqrt(a)
+}
+
+#[pyfunction]
+fn mibl_inv_sqrt(a: f32) -> f32 {
+    node_utils::math::inv_sqrt(a)
+}
+
+#[pyfunction]
+fn mibl_min(a: f32, b: f32) -> f32 {
+    node_utils::math::min(a, b)
+}
+
+#[pyfunction]
+fn mibl_max(a: f32, b: f32) -> f32 {
+    node_utils::math::max(a, b)
+}
+
+#[pyfunction]
+fn mibl_compare(a: f32, b: f32, e: f32) -> bool {
+    node_utils::math::compare(a, b, e)
+}
+
+#[pyfunction]
+fn mibl_lt(a: f32, b: f32) -> bool {
+    node_utils::math::lt(a, b)
+}
+
+#[pyfunction]
+fn mibl_gt(a: f32, b: f32) -> bool {
+    node_utils::math::gt(a, b)
+}
+
+#[pyfunction]
+fn mibl_le(a: f32, b: f32) -> bool {
+    node_utils::math::le(a, b)
+}
+
+#[pyfunction]
+fn mibl_ge(a: f32, b: f32) -> bool {
+    node_utils::math::ge(a, b)
+}
+
+#[pyfunction]
+fn mibl_map_range(
+    value: f32,
+    from_min: f32,
+    from_max: f32,
+    to_min: f32,
+    to_max: f32,
+    clamp: bool,
+) -> f32 {
+    node_utils::math::map_range(value, from_min, from_max, to_min, to_max, clamp)
 }
 
 /// A Python module implemented in Rust. The name of this function must match
@@ -142,6 +228,24 @@ fn sum_float_custom(a: f32, b: f32) -> PyResult<f32> {
 #[pymodule]
 fn mibllib(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<MiBlRustProcess>()?;
-    m.add_function(wrap_pyfunction!(sum_float_custom, m)?)?;
+    // MATH FUNCION
+    m.add_function(wrap_pyfunction!(mibl_add, m)?)?;
+    m.add_function(wrap_pyfunction!(mibl_multiply, m)?)?;
+    m.add_function(wrap_pyfunction!(mibl_divide, m)?)?;
+    m.add_function(wrap_pyfunction!(mibl_abs, m)?)?;
+    m.add_function(wrap_pyfunction!(mibl_mul_add, m)?)?;
+    m.add_function(wrap_pyfunction!(mibl_pow, m)?)?;
+    m.add_function(wrap_pyfunction!(mibl_log, m)?)?;
+    m.add_function(wrap_pyfunction!(mibl_exp, m)?)?;
+    m.add_function(wrap_pyfunction!(mibl_sqrt, m)?)?;
+    m.add_function(wrap_pyfunction!(mibl_inv_sqrt, m)?)?;
+    m.add_function(wrap_pyfunction!(mibl_min, m)?)?;
+    m.add_function(wrap_pyfunction!(mibl_max, m)?)?;
+    m.add_function(wrap_pyfunction!(mibl_compare, m)?)?;
+    m.add_function(wrap_pyfunction!(mibl_lt, m)?)?;
+    m.add_function(wrap_pyfunction!(mibl_gt, m)?)?;
+    m.add_function(wrap_pyfunction!(mibl_le, m)?)?;
+    m.add_function(wrap_pyfunction!(mibl_ge, m)?)?;
+    m.add_function(wrap_pyfunction!(mibl_map_range, m)?)?;
     Ok(())
 }
