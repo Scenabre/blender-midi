@@ -35,6 +35,10 @@ class NODE_MT_MidiInteractive_GEO_SHARED(Menu):
         #                             "MidiInteractiveRemoveAttribute"
         #                             )
         node_add_menu.add_node_type(layout,
+                                    "NODE_MI_BL_MATH_add",
+                                    search_weight=1.0
+                                    )
+        node_add_menu.add_node_type(layout,
                                     "MidiInteractiveStoreNamedAttribute",
                                     search_weight=1.0
                                     )
@@ -53,10 +57,10 @@ class NODE_MT_MidiInteractive_add_all(Menu):
         layout.separator()
         layout.menu("NODE_MT_MidiInteractive_GEO_SHARED")
         layout.separator()
-        layout.menu("NODE_MT_category_GEO_UTILITIES_ROTATION")
-        layout.menu("NODE_MT_category_utilities_matrix")
-        layout.menu("NODE_MT_category_GEO_UTILITIES_MATH")
-        layout.menu("NODE_MT_category_GEO_UTILITIES_ROTATION")
+        # layout.menu("NODE_MT_category_GEO_UTILITIES_ROTATION")
+        # layout.menu("NODE_MT_category_utilities_matrix")
+        # layout.menu("NODE_MT_category_GEO_UTILITIES_MATH")
+        # layout.menu("NODE_MT_category_GEO_UTILITIES_ROTATION")
 
 
 # # all categories in a list

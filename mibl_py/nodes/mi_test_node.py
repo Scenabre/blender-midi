@@ -1,4 +1,4 @@
-# from mibllib import sum_float_custom
+from mibllib import mibl_add
 from bpy.types import Node
 
 
@@ -26,7 +26,7 @@ class NODE_MI_BL_Test(Node):
     def update(self):
         input_a = self.inputs['Input A'].my_custom_property
         input_b = self.inputs['Input B'].my_custom_property
-        result = sum_float_custom(input_a, input_b)
+        result = mibl_add(input_a, input_b)
         print("Node compute : ", result)
 
     def draw_label(self):

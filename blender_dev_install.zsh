@@ -1,6 +1,6 @@
 #!/bin/zsh
 
-if [ $# -ne 2 ]; then
+if [ $# -ne 1 ]; then
   echo "Usage : $0 blender_install_dir"
   exit
 fi

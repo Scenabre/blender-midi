@@ -14,7 +14,7 @@ import importlib
 
 def install_mibllib():
     if not check_if_exists("mibllib"):
-        whl_name = "my_rust_lib-0.1.0-cp311-cp311-manylinux_2_34_x86_64.whl"
+        whl_name = "mibllib-0.1.0-cp311-cp311-manylinux_2_34_x86_64.whl"
         whl_path = os.path.join(os.path.dirname(__file__), "wheels", whl_name)
 
         pip_cmd = [sys.executable,
