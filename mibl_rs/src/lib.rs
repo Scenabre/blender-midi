@@ -46,46 +46,33 @@ impl MiBlRustProcess {
         MiBlRustProcess { inner: mibl }
     }
 
-    //fn get_rx_data(&self) -> [u8; MAX_MIDI_MSG_SIZE] {
-    //    self.rx_data
-    //}
+    fn get_rx_data(&self) -> [u8; MAX_MIDI_MSG_SIZE] {
+        self.inner.lock().expect("lock not poisoned").rx_data
+    }
+
+    fn get_tx_data(&self) -> [u8; MAX_MIDI_MSG_SIZE] {
+        self.inner.lock().expect("lock not poisoned").tx_data
+    }
 
     fn get_rx_stamp(&self) -> u64 {
         self.inner.lock().expect("lock not poisoned").rx_stamp
+    }
+
+    fn get_data_len(&self) -> u8 {
+        self.inner.lock().expect("lock not poisoned").rx_len
     }
 
     fn set_rx_stamp(&self, stamp: u64) {
         self.inner.lock().expect("lock not poisoned").rx_stamp = stamp;
     }
 
-    //fn set_rx(&mut self, stamp: u64, rx_data: [u8; MAX_MIDI_MSG_SIZE]) {
-    //    self.rx_stamp = stamp;
-    //    self.rx_data = rx_data;
-    //}
+    fn set_rx_data(&self, rx_data: [u8; MAX_MIDI_MSG_SIZE]) {
+        self.inner.lock().expect("lock not poisoned").rx_data = rx_data;
+    }
 
-    //fn get_rx_stamp(&self) -> Vec<u64> {
-    //    let mut stamps: Vec<u64> = Vec::new();
-    //    while let Ok(mesg) = self.rx.try_recv() {
-    //        stamps.push(mesg.delta_frames);
-    //    }
-    //    stamps
-    //}
-
-    //fn get_tx_data(&self) -> &[u8] {
-    //    self.tx.data()
-    //}
-    //
-    //fn get_tx_stamp(&self) -> u64 {
-    //    self.tx.delta_frames
-    //}
-    //
-    //fn set_tx(&mut self, delta_frames: u64, data: &[u8]) {
-    //    let _ = self.tx.set(delta_frames, data);
-    //}
-    //
-    //fn set_rx(&mut self, delta_frames: u64, data: &[u8]) {
-    //    let _ = self.rx.set(delta_frames, data);
-    //}
+    fn set_tx_data(&self, tx_data: [u8; MAX_MIDI_MSG_SIZE]) {
+        self.inner.lock().expect("lock not poisoned").rx_data = tx_data;
+    }
 
     //fn toggle_close_thread(&mut self) {
     //    self.close_thread = !self.close_thread;
@@ -123,8 +110,7 @@ fn mi_start_server(mibl: &MiBlRustProcess) {
     }
 }
 
-// MATH FUNCIONS
-
+// MATH FUNCTIONS
 #[pyfunction]
 fn mibl_add(a: f32, b: f32) -> f32 {
     node_utils::math::add(a, b)
@@ -228,7 +214,7 @@ fn mibl_map_range(
 #[pymodule]
 fn mibllib(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<MiBlRustProcess>()?;
-    // MATH FUNCION
+    // MATH FUNCTION
     m.add_function(wrap_pyfunction!(mibl_add, m)?)?;
     m.add_function(wrap_pyfunction!(mibl_multiply, m)?)?;
     m.add_function(wrap_pyfunction!(mibl_divide, m)?)?;
