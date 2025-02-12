@@ -1,81 +1,30 @@
 from ..node_tree.mi_node_tree import TREE_NAME
 from bpy.types import Menu
 from bl_ui import node_add_menu
+from nodeitems_utils import NodeCategory, NodeItem
 
 
-class NODE_MT_MidiInteractive_MIDI_TEST(Menu):
-    bl_idname = "NODE_MT_MidiInteractive_MIDI_TEST"
-    bl_label = "Test"
-
-    def draw(self, _context):
-        layout = self.layout
-        node_add_menu.add_node_type(layout, "MyCustomNodeType")
+class MI_BL_NodeCategory(NodeCategory):
+    @classmethod
+    def poll(cls, context):
+        return context.space_data.tree_type == TREE_NAME
 
 
-class NODE_MT_MidiInteractive_GEO_SHARED(Menu):
-    bl_idname = "NODE_MT_MidiInteractive_GEO_SHARED"
-    bl_label = "Shared Nodes"
-
-    def draw(self, _context):
-        layout = self.layout
-        # node_add_menu.add_node_type(layout,
-        #                             "MidiInteractiveAttributeStatistic"
-        #                             )
-        # node_add_menu.add_node_type(layout,
-        #                             "MidiInteractiveAttributeDomainSize"
-        #                             )
-        # layout.separator()
-        # node_add_menu.add_node_type(layout,
-        #                             "MidiInteractiveBlurAttribute"
-        #                             )
-        # node_add_menu.add_node_type(layout,
-        #                             "MidiInteractiveCaptureAttribute"
-        #                             )
-        # node_add_menu.add_node_type(layout,
-        #                             "MidiInteractiveRemoveAttribute"
-        #                             )
-        node_add_menu.add_node_type(layout,
-                                    "NODE_MI_BL_MATH_add",
-                                    search_weight=1.0
-                                    )
-        node_add_menu.add_node_type(layout,
-                                    "MidiInteractiveStoreNamedAttribute",
-                                    search_weight=1.0
-                                    )
-        node_add_menu.draw_assets_for_catalog(layout,
-                                              self.bl_label
-                                              )
-
-
-class NODE_MT_MidiInteractive_add_all(Menu):
-    bl_idname = "NODE_MT_MidiInteractive_add_all"
-    bl_label = ''
-
-    def draw(self, context):
-        layout = self.layout
-        layout.menu("NODE_MT_MidiInteractive_MIDI_TEST")
-        layout.separator()
-        layout.menu("NODE_MT_MidiInteractive_GEO_SHARED")
-        layout.separator()
-        # layout.menu("NODE_MT_category_GEO_UTILITIES_ROTATION")
-        # layout.menu("NODE_MT_category_utilities_matrix")
-        # layout.menu("NODE_MT_category_GEO_UTILITIES_MATH")
-        # layout.menu("NODE_MT_category_GEO_UTILITIES_ROTATION")
-
-
-# # all categories in a list
-# node_categories = [
-#     # identifier, label, items list
-#     MyNodeCategory('SOMENODES', "Some Nodes", items=[
-#         # our basic node
-#         NodeItem("MyCustomNodeType"),
-#     ]),
-# ]
-
-
-def menu_func(self, context):
-    if context.space_data.tree_type == TREE_NAME:
-        self.layout.menu("NODE_MT_MidiInteractive_add_all")
+# all categories in a list
+node_categories = [
+    MI_BL_NodeCategory('INPUT', "Input", items=[
+        NodeItem("NODE_MI_BL_group_input"),
+        NodeItem("NODE_MI_BL_value_input"),
+        NodeItem("NODE_MI_BL_object"),
+    ]),
+    MI_BL_NodeCategory('OUTPUT', "Output", items=[
+        NodeItem("NODE_MI_BL_group_output"),
+    ]),
+    MI_BL_NodeCategory('GEOSHARED', "Geo Shared", items=[
+        NodeItem("NODE_MI_BL_MATH_add"),
+        NodeItem("MidiInteractiveStoreNamedAttribute"),
+    ]),
+]
 
 
 # def draw_menu(self, context):

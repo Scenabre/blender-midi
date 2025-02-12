@@ -35,40 +35,7 @@ class NODE_MI_BL_set_attr(Node):
         default='FLOAT'
     )
 
-    def init(self, context):
-        # Mapping of attribute types to socket types
-        socket_mapping = {
-            'FLOAT': 'NodeSocketFloat',
-            'INT': 'NodeSocketFloat',
-            'FLOAT_VECTOR': 'NodeSocketVector',
-            'FLOAT_COLOR': 'NodeSocketColor',
-            'BYTE_COLOR': 'NodeSocketColor',
-            'STRING': 'NodeSocketString',
-            'BOOLEAN': 'NodeSocketBool',
-        }
-        socket_type = socket_mapping.get(self.attribute_type)
-
-        if socket_type:
-            self.inputs.new(socket_type, "Value")
-
-    def update(self):
-        # Get the object associated with the node tree
-        obj = bpy.context.object
-
-        if obj and obj.type == 'MESH':
-            domain = self.attribute_domain.lower()
-            attr_type = self.attribute_type
-
-            if self.attribute_name in obj.data.attributes:
-                attr = obj.data.attributes[self.attribute_name]
-            else:
-                attr = obj.data.attributes.new(
-                    self.attribute_name,
-                    attr_type,
-                    domain
-                )
-
-            attr_handlers = {
+    attr_handlers: {
                 'FLOAT':
                     ('value',
                      lambda:
@@ -106,7 +73,45 @@ class NODE_MI_BL_set_attr(Node):
                     ),
             }
 
-            handler = attr_handlers.get(attr_type)
+    def init(self, context):
+        # Mapping of attribute types to socket types
+        socket_mapping = {
+            'FLOAT': 'NodeSocketFloat',
+            'INT': 'NodeSocketFloat',
+            'FLOAT_VECTOR': 'NodeSocketVector',
+            'FLOAT_COLOR': 'NodeSocketColor',
+            'BYTE_COLOR': 'NodeSocketColor',
+            'STRING': 'NodeSocketString',
+            'BOOLEAN': 'NodeSocketBool',
+        }
+        socket_type = socket_mapping.get(self.attribute_type)
+
+        if socket_type:
+            self.inputs.new(socket_type, "Value")
+
+    def draw_buttons(self, context, layout):
+        layout.prop(self, "attribute_name")
+        layout.prop(self, "attribute_type")
+        layout.prop(self, "attribute_domain")
+
+    def update(self):
+        # Get the object associated with the node tree
+        obj = bpy.context.object
+
+        if obj and obj.type == 'MESH':
+            domain = self.attribute_domain.lower()
+            attr_type = self.attribute_type
+
+            if self.attribute_name in obj.data.attributes:
+                attr = obj.data.attributes[self.attribute_name]
+            else:
+                attr = obj.data.attributes.new(
+                    self.attribute_name,
+                    attr_type,
+                    domain
+                )
+
+            handler = self.attr_handlers.get(attr_type)
             if handler:
                 data_type, prepare_data = handler
                 attr_data = prepare_data()

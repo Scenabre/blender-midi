@@ -1,11 +1,12 @@
 from bpy.utils import register_class, unregister_class
 from bpy.types import NODE_MT_add
+import nodeitems_utils
 
 import os
 import importlib
 import inspect
 
-from .mi_ui import menu_func
+from .mi_ui import node_categories
 
 
 def query_all_classes():
@@ -31,12 +32,14 @@ def register():
     for cls in classes:
         print("Register class : ", cls.__name__)
         register_class(cls)
-    NODE_MT_add.prepend(menu_func)
+
+    nodeitems_utils.register_node_categories('MIBL_NODES', node_categories)
 
 
 def unregister():
     classes = query_all_classes()
-    NODE_MT_add.remove(menu_func)
+    nodeitems_utils.unregister_node_categories('MIBL_NODES')
+
     for cls in reversed(classes):
         print("Unregister class : ", cls.__name__)
         unregister_class(cls)
