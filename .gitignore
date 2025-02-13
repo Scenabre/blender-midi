@@ -3,4 +3,4 @@ Cargo.lock
 /mibl_rs/deps/
 /mibl_py/wheels/
 /mibl_py/*.zip
-Test.blend
+Test.blend*
