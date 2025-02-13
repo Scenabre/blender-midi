@@ -16,13 +16,13 @@ class MI_BL_Panel(Panel):
 
     def draw(self, context):
         layout = self.layout
-        scene = context.scene
+        scene = context.scene.mibl
 
         row = layout.row()
-        row.prop(scene, "midi_server_running", text="Server Running")
+        row.prop(scene, "mi_run_server", text="Server Running")
 
         row = layout.row()
-        if scene.midi_server_running:
-            row.operator("midi.stop_server", text="Stop Server")
+        if scene.mi_run_server:
+            row.operator("mibl.stop_server", text="Stop Server")
         else:
-            row.operator("midi.start_server", text="Start Server")
+            row.operator("mibl.start_server", text="Start Server")
