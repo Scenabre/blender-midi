@@ -16,6 +16,11 @@ class MI_BL_Panel(Panel):
 
     def draw(self, context):
         layout = self.layout
+        mibl_props = context.scene.mibl
 
         row = layout.row()
-        row.operator("mibl.set_server_state", text="Start/Stop Midi server")
+
+        if mibl_props.mi_run_server:
+            row.operator("mibl.set_server_state", text="Stop Midi Server")
+        else:
+            row.operator("mibl.set_server_state", text="Start Midi Server")
