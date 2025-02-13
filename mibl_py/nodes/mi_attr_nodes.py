@@ -7,11 +7,11 @@ class NODE_MI_BL_set_attr(Node):
     bl_idname = 'MidiInteractiveStoreNamedAttribute'
     bl_label = 'MI Store Named Attribute'
 
-    attribute_name: StringProperty(name="Attribute Name",
+    attribute_name: StringProperty(name='',
                                    default="custom_attr"
                                    )
     attribute_domain: EnumProperty(
-        name="Attribute Domain",
+        name='',
         items=(
             ('POINT', "Point", ""),
             ('EDGE', "Edge", ""),
@@ -22,7 +22,7 @@ class NODE_MI_BL_set_attr(Node):
         default='POINT'
     )
     attribute_type: EnumProperty(
-        name="Attribute Type",
+        name="",
         items=(
             ('FLOAT', "Float", ""),
             ('INT', "Integer", ""),
@@ -74,7 +74,6 @@ class NODE_MI_BL_set_attr(Node):
             }
 
     def init(self, context):
-        # Mapping of attribute types to socket types
         socket_mapping = {
             'FLOAT': 'NodeSocketFloat',
             'INT': 'NodeSocketFloat',
@@ -86,6 +85,8 @@ class NODE_MI_BL_set_attr(Node):
         }
         socket_type = socket_mapping.get(self.attribute_type)
 
+        self.inputs.new('NodeSocketGeometry', "Geometry")
+
         if socket_type:
             self.inputs.new(socket_type, "Value")
 
@@ -95,17 +96,16 @@ class NODE_MI_BL_set_attr(Node):
         layout.prop(self, "attribute_domain")
 
     def update(self):
-        # Get the object associated with the node tree
-        obj = bpy.context.object
+        obj_data = self.inputs["Geometry"].get("Geometry")
 
-        if obj and obj.type == 'MESH':
+        if obj_data:
             domain = self.attribute_domain.lower()
             attr_type = self.attribute_type
 
-            if self.attribute_name in obj.data.attributes:
-                attr = obj.data.attributes[self.attribute_name]
+            if self.attribute_name in obj_data.attributes:
+                attr = obj_data.attributes[self.attribute_name]
             else:
-                attr = obj.data.attributes.new(
+                attr = obj_data.attributes.new(
                     self.attribute_name,
                     attr_type,
                     domain
