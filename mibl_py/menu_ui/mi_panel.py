@@ -3,8 +3,8 @@ from bpy.types import Panel
 
 
 class MI_BL_Panel(Panel):
-    """Creates a Panel in the scene context of the properties editor"""
-    bl_label = "Layout Demo"
+    """MiBl Panel to manage the midi server"""
+    bl_label = "MiBl Panel"
     bl_idname = "NODE_PT_" + TREE_NAME
     bl_space_type = 'NODE_EDITOR'
     bl_region_type = 'UI'
@@ -16,13 +16,6 @@ class MI_BL_Panel(Panel):
 
     def draw(self, context):
         layout = self.layout
-        scene = context.scene.mibl
 
         row = layout.row()
-        row.prop(scene, "mi_run_server", text="Server Running")
-
-        row = layout.row()
-        if scene.mi_run_server:
-            row.operator("mibl.stop_server", text="Stop Server")
-        else:
-            row.operator("mibl.start_server", text="Start Server")
+        row.operator("mibl.set_server_state", text="Start/Stop Midi server")
