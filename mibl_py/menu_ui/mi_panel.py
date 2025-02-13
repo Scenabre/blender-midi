@@ -5,7 +5,7 @@ from bpy.types import Panel
 class MI_BL_Panel(Panel):
     """Creates a Panel in the scene context of the properties editor"""
     bl_label = "Layout Demo"
-    bl_idname = "NODE_PT" + TREE_NAME
+    bl_idname = "NODE_PT_" + TREE_NAME
     bl_space_type = 'NODE_EDITOR'
     bl_region_type = 'UI'
     bl_category = 'Custom'
