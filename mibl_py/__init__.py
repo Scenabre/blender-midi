@@ -10,6 +10,7 @@ import sys
 import os
 import pkgutil
 import importlib
+import datetime
 
 
 def install_mibllib():
@@ -50,7 +51,8 @@ def query_all_modules(attr):
             module = importlib.import_module(f"{__name__}.{module_name}")
             if hasattr(module, attr):
                 print("Query module : ", module)
-                module.register()
+                run_fn = getattr(module, attr)
+                run_fn()
 
 
 # def menu_func(self, context):
@@ -58,12 +60,20 @@ def query_all_modules(attr):
 
 
 def register():
+    print("----- Register plugin MiBL -----")
+    print(datetime.datetime.now())
+    print("-----")
     # install_mibllib() # Test all the code then uncomment !
     query_all_modules('register')
+    print("---- Registering done ! ----")
 
 
 def unregister():
+    print("----- Unregister plugin MiBL -----")
+    print(datetime.datetime.now())
+    print("-----")
     query_all_modules('unregister')
+    print("---- Unregistering done ! ----")
 
 
 if __name__ == "__main__":
