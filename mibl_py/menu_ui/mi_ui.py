@@ -24,6 +24,9 @@ node_categories = [
         NodeItem("NODE_MI_BL_MATH_add"),
         NodeItem("MidiInteractiveStoreNamedAttribute"),
     ]),
+    MI_BL_NodeCategory('TEST', "Testing", items=[
+        NodeItem("NODE_MI_BL_Test"),
+    ]),
 ]
 
 
