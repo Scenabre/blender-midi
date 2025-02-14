@@ -22,10 +22,9 @@ class NODE_MI_BL_object(Node):
 
     def init(self, context):
         self.inputs.new('NodeSocketObject', "Object")
-        self.outputs.new('NodeSocketGeometry', 'Geometry')
+        self.outputs.new('NodeSocketObject', 'Object')
 
     def update(self):
         obj = self.inputs['Object'].default_value
         if obj:
-            pass
-            # self.outputs['Geometry'].set(obj.data)
+            self.outputs['Object'].default_value = obj

@@ -1,9 +1,4 @@
-from mibllib import mibl_add
 from bpy.types import Node
-
-
-def sum_float_custom(a, b):
-    pass
 
 
 class NODE_MI_BL_Test(Node):
@@ -13,21 +8,16 @@ class NODE_MI_BL_Test(Node):
     bl_icon = 'NODETREE'
 
     def init(self, context):
-        self.inputs.new('SOCKET_MI_BL_Test', "Input A")
-        self.inputs.new('SOCKET_MI_BL_Test', "Input B")
-        self.outputs.new('SOCKET_MI_BL_Test', "Output")
-
-    def copy(self, node):
-        print("Copying from node ", node)
-
-    def free(self):
-        print("Removing node ", self, ", Goodbye!")
+        self.inputs.new('NodeSocketFloat', 'Input A')
+        self.inputs.new('NodeSocketFloat', 'Input B')
+        self.outputs.new('NodeSocketFloat', 'Result')
+        self.outputs.new('NodeSocketFloat', 'Pass Through A')
+        self.outputs.new('NodeSocketFloat', 'Pass Through B')
 
     def update(self):
-        input_a = self.inputs['Input A'].my_custom_property
-        input_b = self.inputs['Input B'].my_custom_property
-        result = mibl_add(input_a, input_b)
-        print("Node compute : ", result)
-
-    def draw_label(self):
-        return "I am a custom node"
+        input_a = self.inputs['Input A'].default_value if not self.inputs['Input A'].is_linked else self.inputs['Input A'].links[0].from_socket.default_value
+        input_b = self.inputs['Input B'].default_value if not self.inputs['Input B'].is_linked else self.inputs['Input B'].links[0].from_socket.default_value
+        result = input_a * input_b
+        self.outputs['Result'].default_value = result
+        self.outputs['Pass Through A'].default_value = input_a
+        self.outputs['Pass Through B'].default_value = input_b
