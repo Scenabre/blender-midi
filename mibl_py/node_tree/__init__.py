@@ -1,4 +1,6 @@
 from bpy.utils import register_class, unregister_class
+from .mi_node_tree import TREE_NAME
+from bpy.app import handlers
 import os
 import importlib
 import inspect
@@ -22,11 +24,24 @@ def query_all_classes():
     return classes
 
 
+def force_update_node_tree(node_tree):
+    for node in node_tree.nodes:
+        node.update()
+
+
+def on_depsgraph_update(scene, depsgraph):
+    for update in depsgraph.updates:
+        if isinstance(update.id, bpy.types.NodeTree) and update.id.bl_idname == TREE_NAME:
+            force_update_node_tree(update.id)
+
+
 def register():
     classes = query_all_classes()
     for cls in classes:
         print("Register class : ", cls.__name__)
         register_class(cls)
+
+    handlers.depsgraph_update_post.append(on_depsgraph_update)
 
 
 def unregister():
@@ -34,3 +49,5 @@ def unregister():
     for cls in reversed(classes):
         print("Unregister class : ", cls.__name__)
         unregister_class(cls)
+
+    handlers.depsgraph_update_post.remove(on_depsgraph_update)
