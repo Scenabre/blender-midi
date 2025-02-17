@@ -15,11 +15,21 @@ class MI_BL_NodeTree(NodeTree):
     # Icon identifier
     bl_icon = 'LINK_BLEND'
 
+    def execute(self, context):
+        for node in self.nodes:
+            node.update()
+        layer = context.view_layer
+        layer.update()
 
-class MI_BL_NodeTreeNode:
+
+class MI_BL_Node:
     @classmethod
     def poll(cls, ntree):
         return ntree.bl_idname == TREE_NAME
+
+    @classmethod
+    def execute(self):
+        pass
 
 
 class MI_BL_NodeCategory(NodeCategory):

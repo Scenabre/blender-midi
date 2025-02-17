@@ -1,9 +1,10 @@
 from mibllib import *
 from bpy.types import Node
 from bpy.props import FloatProperty
+from ..node_tree.mi_node_tree import MI_BL_Node
 
 
-class NODE_MI_BL_MATH_add(Node):
+class NODE_MI_BL_MATH_add(Node, MI_BL_Node):
     '''MiBl Math Add Node'''
     bl_idname = 'NODE_MI_BL_MATH_add'
     bl_label = 'MI Math Add'
@@ -24,10 +25,13 @@ class NODE_MI_BL_MATH_add(Node):
     def free(self):
         print("Removing node ", self, ", Goodbye!")
 
-    def update(self):
+    def execute(self):
         result = mibl_add(self.float_input1, self.float_input2)
         self.float_output = result
         print("Node compute : ", result)
 
+    def update(self):
+        self.execute()
+        
     def draw_label(self):
         return "Mi Math Node"
