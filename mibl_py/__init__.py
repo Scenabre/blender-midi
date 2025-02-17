@@ -63,7 +63,7 @@ def register():
     print("----- Register plugin MiBL -----")
     print(datetime.datetime.now())
     print("-----")
-    # install_mibllib() # Test all the code then uncomment !
+    install_mibllib()  # Test all the code then uncomment !
     query_all_modules('register')
     print("---- Registering done ! ----")
 
