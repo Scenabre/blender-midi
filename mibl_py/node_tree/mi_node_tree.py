@@ -23,6 +23,19 @@ class MI_BL_NodeTree(NodeTree):
 
 
 class MI_BL_Node:
+    _isMiNode = True
+    _index = -1
+
+    @classmethod
+    def get_linked(self, inputs):
+        ret_inputs = []
+        for input in inputs:
+            if input.is_linked:
+                ret_inputs.append(input.links[0].from_socket.default_value)
+            else:
+                ret_inputs.append(input.default_value)
+        return ret_inputs
+
     @classmethod
     def poll(cls, ntree):
         return ntree.bl_idname == TREE_NAME

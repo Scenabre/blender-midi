@@ -1,4 +1,4 @@
-from ..node_tree.mi_node_tree import TREE_NAME
+from .. node_tree.mi_node_tree import TREE_NAME
 from bpy.types import Menu
 from bl_ui import node_add_menu
 from nodeitems_utils import NodeCategory, NodeItem

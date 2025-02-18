@@ -21,6 +21,11 @@ class PropsMiBl(PropertyGroup):
     )
     mi_run_server: BoolProperty(
         name="mi_run_server",
-        description="MIDI Interactive control ",
+        description="MIDI Interactive control",
         default=False
+    )
+    mi_use_system_ctlr: BoolProperty(
+        name="mi_use_system_ctlr",
+        description="Toggle Mackie Device system control",
+        default=True
     )

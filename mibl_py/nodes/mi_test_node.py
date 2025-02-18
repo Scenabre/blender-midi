@@ -1,5 +1,5 @@
 from bpy.types import Node
-from ..node_tree.mi_node_tree import MI_BL_Node
+from .. node_tree.mi_node_tree import MI_BL_Node
 
 
 class NODE_MI_BL_Test(Node, MI_BL_Node):

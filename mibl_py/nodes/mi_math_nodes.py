@@ -1,7 +1,7 @@
 from mibllib import *
 from bpy.types import Node
 from bpy.props import FloatProperty
-from ..node_tree.mi_node_tree import MI_BL_Node
+from .. node_tree.mi_node_tree import MI_BL_Node
 
 
 class NODE_MI_BL_MATH_add(Node, MI_BL_Node):

@@ -1,13 +1,12 @@
 import bpy
 from bpy.types import Node
 from bpy.props import StringProperty, EnumProperty
-from ..node_tree.mi_node_tree import MI_BL_Node
+from .. node_tree.mi_node_tree import MI_BL_Node
 
 
 class NODE_MI_BL_set_attr(Node, MI_BL_Node):
     bl_idname = 'MidiInteractiveStoreNamedAttribute'
     bl_label = 'MI Store Named Attribute'
-    custom_idx = 0
 
     attribute_name: StringProperty(name='',
                                    default="custom_attr"
@@ -62,48 +61,34 @@ class NODE_MI_BL_set_attr(Node, MI_BL_Node):
         layout.prop(self, "attribute_domain")
 
     def execute(self):
-        obj = self.inputs['Object'].default_value if not self.inputs['Object'].is_linked else self.inputs['Object'].links[0].from_socket.default_value
-        value = self.inputs['Value'].default_value if not self.inputs['Value'].is_linked else self.inputs['Value'].links[0].from_socket.default_value
+        inputs = self.get_linked(self.inputs)
+        obj = inputs[0]
+        value = inputs[1]
 
         attr_handlers = {
             'FLOAT':
-            ('value',
-             lambda:
-             [value] * len(attr.data)
-             ),
+            ('value', lambda: [value] * len(attr.data)),
             'INT':
-            ('value',
-             lambda:
-             [self.inputs['Value'].default_value] * len(attr.data)
+            ('value', lambda:
+                [value] * len(attr.data)
              ),
             'FLOAT_VECTOR':
-            ('vector',
-             lambda:
-             [value for i in range(3)] * (len(attr.data) // 3)
+            ('vector', lambda:
+                [value for i in range(3)] * (len(attr.data) // 3)
              ),
             'FLOAT_COLOR':
-            ('color',
-             lambda:
-             [value for i in range(4)] * (len(attr.data) // 4)
+            ('color', lambda:
+                [value for i in range(4)] * (len(attr.data) // 4)
              ),
             'BYTE_COLOR':
-            ('color',
-             lambda:
-             [int(value * 255) for i in range(4)] * (len(attr.data) // 4)
+            ('color', lambda:
+                [int(value * 255) for i in range(4)] * (len(attr.data) // 4)
              ),
             'STRING':
-            ('string',
-             lambda:
-             [value] * len(attr.data)
-             ),
+            ('string', lambda: [value] * len(attr.data)),
             'BOOLEAN':
-            ('boolean',
-             lambda:
-             [value] * len(attr.data)
-             ),
+            ('boolean', lambda: [value] * len(attr.data)),
         }
-
-        print("Value : ", value)
 
         if obj:
             obj_data = obj.data
@@ -123,8 +108,6 @@ class NODE_MI_BL_set_attr(Node, MI_BL_Node):
             if handler:
                 data_type, prepare_data = handler
                 attr_data = prepare_data()
-                print("Setting attr into :", obj.name)
-                print(data_type, attr_data)
                 attr.data.foreach_set(data_type, attr_data)
 
     def update(self):

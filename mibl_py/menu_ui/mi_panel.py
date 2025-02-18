@@ -1,4 +1,4 @@
-from ..node_tree.mi_node_tree import TREE_NAME
+from .. node_tree.mi_node_tree import TREE_NAME
 from bpy.types import Panel
 
 
@@ -8,7 +8,7 @@ class MI_BL_Panel(Panel):
     bl_idname = "NODE_PT_" + TREE_NAME
     bl_space_type = 'NODE_EDITOR'
     bl_region_type = 'UI'
-    bl_category = 'Custom'
+    bl_category = 'MiBl'
 
     @classmethod
     def poll(cls, context):
@@ -24,3 +24,6 @@ class MI_BL_Panel(Panel):
             row.operator("mibl.set_server_state", text="Stop Midi Server")
         else:
             row.operator("mibl.set_server_state", text="Start Midi Server")
+
+        layout.label(text="Server controls :")
+        layout.prop(mibl_props, 'mi_use_system_ctlr', text="Use MC system control")

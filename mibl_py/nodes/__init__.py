@@ -3,9 +3,8 @@ import os
 import importlib
 import inspect
 from bpy.utils import register_class, unregister_class
-from ..node_tree import execute_active_node_tree
-from .mi_attr_nodes import NODE_MI_BL_set_attr
-from .mi_input_nodes import NODE_MI_BL_value_input
+from .. node_tree.mi_update import execute_active_node_tree
+from . mi_input_nodes import NODE_MI_BL_value_input
 
 
 def query_all_classes():
@@ -43,22 +42,15 @@ def register():
         options={"PERSISTENT", }
     )
 
-    bpy.msgbus.subscribe_rna(
-        key=NODE_MI_BL_set_attr,
-        owner=1,
-        args=(),
-        notify=execute_active_node_tree,
-        options={"PERSISTENT", }
-    )
-
 
 def unregister():
     classes = query_all_classes()
     for cls in reversed(classes):
         print("Unregister class : ", cls.__name__)
 
-        if hasattr(cls, 'custom_idx'):
-            print("Unregister msgbus")
-            bpy.msgbus.clear_by_owner(cls.custom_idx)
+        if hasattr(cls, '_index'):
+            if cls._index != -1:
+                print("Unregister msgbus")
+                bpy.msgbus.clear_by_owner(cls._index)
 
         unregister_class(cls)
