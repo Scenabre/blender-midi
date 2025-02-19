@@ -74,13 +74,13 @@ impl MiBlRustProcess {
         self.inner.lock().expect("lock not poisoned").rx_data = tx_data;
     }
 
-    //fn toggle_close_thread(&mut self) {
-    //    self.close_thread = !self.close_thread;
-    //}
-    //
-    //fn get_signal(&self) -> bool {
-    //    self.close_thread
-    //}
+    fn set_close_signal(&self, signal: bool) {
+        self.inner.lock().expect("lock not poisoned").close_thread = signal;
+    }
+
+    fn get_signal(&self) -> bool {
+        self.inner.lock().expect("lock not poisoned").close_thread
+    }
 
     fn mi_start_server_allow_thread(&self, py: Python) {
         py.allow_threads(|| mi_start_server(self));
@@ -93,18 +93,33 @@ fn mi_start_server(mibl: &MiBlRustProcess) {
 
     let (tx_channel_rx, rx_channel_rx) = channel::<u64>();
     let (tx_channel_tx, rx_channel_tx) = channel::<u64>();
+    let (tx_signal, rx_signal) = channel::<bool>();
+
     let mut last_stamp = 0;
 
     spawn(move || {
         let sender_rx = tx_channel_rx.clone();
         let sender_tx = tx_channel_tx.clone();
+        let sender_signal = tx_signal.clone();
 
-        init_midi_audio(sender_tx, sender_rx);
+        init_midi_audio(sender_tx, sender_rx, sender_signal);
     });
 
+    let mut int_signal = false;
+
     loop {
+        if int_signal {
+            sleep(Duration::from_secs(2));
+            return;
+        }
+
         for i in rx_channel_rx.recv().iter() {
             mibl.set_rx_stamp(*i);
+        }
+
+        for signal in rx_signal.recv().iter() {
+            mibl.set_close_signal(*signal);
+            int_signal = *signal;
         }
         sleep(Duration::from_millis(100));
     }

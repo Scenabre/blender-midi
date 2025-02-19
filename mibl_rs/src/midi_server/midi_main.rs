@@ -9,9 +9,10 @@ use crate::midi_server::setup_client_params::setup_client_params;
 use crate::MiBlRustProcess;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
+use std::thread::sleep;
 use std::time::Duration;
 
-pub fn init_midi_audio(tx: Sender<u64>, rx: Sender<u64>) {
+pub fn init_midi_audio(tx: Sender<u64>, rx: Sender<u64>, ext_signal: Sender<bool>) {
     SimpleLogger::new()
         .with_level(log::LevelFilter::Debug)
         .init()
@@ -47,13 +48,23 @@ pub fn init_midi_audio(tx: Sender<u64>, rx: Sender<u64>) {
 
             info!("Initialization done!");
 
+            let stop_signal = Arc::new(Mutex::new(false));
+            let stop_signal_arc = Arc::clone(&stop_signal);
+
             let _conn_in = params.midi_input.connect(
                 &params.midi_input_port,
                 "bl-midi-in",
                 move |stamp, message, midi_datas| {
                     println!("IN test : {:?}, {:?}", stamp, message);
                     //let test = RawMidi::new(stamp, message).unwrap();
-                    midi_datas.send(stamp).unwrap();
+                    midi_datas.0.send(stamp).unwrap();
+
+                    if midi_datas.4 == 100 {
+                        let _ = midi_datas.2.send(true);
+                        *midi_datas.3.lock().unwrap() = true;
+                    }
+
+                    midi_datas.4 += 1;
                     //input_callback(
                     //    &stamp,
                     //    message,
@@ -68,7 +79,7 @@ pub fn init_midi_audio(tx: Sender<u64>, rx: Sender<u64>) {
                     //    midi_datas_locked.get_rx_data()
                     //);
                 },
-                rx,
+                (rx, tx, ext_signal, stop_signal_arc, 0),
             );
 
             //let mut count: i32 = 0;
@@ -80,7 +91,12 @@ pub fn init_midi_audio(tx: Sender<u64>, rx: Sender<u64>) {
             //    count += 1;
             //}
 
-            std::thread::sleep(Duration::from_secs(10));
+            loop {
+                if *stop_signal.lock().unwrap() {
+                    return;
+                }
+                sleep(Duration::from_millis(100));
+            }
         }
         Err(e) => error!("{}", e),
     };
