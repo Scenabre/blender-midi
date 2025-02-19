@@ -7,15 +7,24 @@ mibl_rs = None
 mibl_thread = None
 
 
-def update_loop():
+def update_loop(thread):
     try:
         while True:
+            signal = mibl_rs.get_signal()
+
+            if signal:
+                print("Getting stop signal !")
+                thread.join()
+                time.sleep(2)
+                sys.exit()
+
             print("Try get value from python :)")
             stamp = mibl_rs.get_rx_stamp()
             print("----:", stamp)
             time.sleep(.4)
     except KeyboardInterrupt:
-        print("SIGINT RECIEVE")
+        print("SIGINT RECEIVE")
+        thread.join()
         sys.exit()
         print("Exiting…")
 
@@ -27,11 +36,11 @@ def main():
     mibl_rs = mibllib.MiBlRustProcess()
 
     mibl_thread = threading.Thread(target=mibl_rs.mi_start_server_allow_thread)
-    mibl_thread.daemon = True
+    # mibl_thread.daemon = True
 
     mibl_thread.start()
 
-    update_loop()
+    update_loop(mibl_thread)
 
 
 if __name__ == "__main__":
