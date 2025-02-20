@@ -1,6 +1,5 @@
 use log::{error, info};
 use midir::MidiOutputConnection;
-use simple_logger::SimpleLogger;
 
 use crate::midi_server::container::RawMidi;
 use crate::midi_server::midi_process_mesg::{process_midi_mesg, CCflag};
@@ -13,16 +12,11 @@ use std::thread::sleep;
 use std::time::Duration;
 
 pub fn init_midi_audio(
-    tx: Sender<u64>,
-    rx: Sender<u64>,
+    tx: Sender<(u64, Vec<u8>)>,
+    rx: Sender<(u64, Vec<u8>)>,
     ext_signal: Sender<bool>,
     int_signal: &mut Arc<Mutex<bool>>,
 ) {
-    //SimpleLogger::new()
-    //    .with_level(log::LevelFilter::Debug)
-    //    .init()
-    //    .unwrap();
-
     match setup_client_params() {
         Ok(mut params) => {
             let mut conn_out: Option<MidiOutputConnection> = match params
@@ -36,18 +30,21 @@ pub fn init_midi_audio(
                 }
             };
 
+            sleep(Duration::from_millis(50));
+
             let init_mesgs: Vec<RawMidi> = initialize_mc_device().unwrap();
             info!("Sending all messages to midi device now…");
 
             let init_mesgs_len = init_mesgs.len();
 
             for (idx, mesg) in init_mesgs.iter().enumerate() {
-                //info!(
-                //    "Sending mesg {}/{} : {:04X?}",
-                //    (idx + 1),
-                //    init_mesgs_len,
-                //    mesg.data()
-                //);
+                info!(
+                    "Sending mesg {}/{} : {:04X?}",
+                    (idx + 1),
+                    init_mesgs_len,
+                    mesg.data()
+                );
+
                 let _ = conn_out.as_mut().unwrap().send(mesg.data());
                 sleep(Duration::from_millis(10));
             }
@@ -58,29 +55,20 @@ pub fn init_midi_audio(
                 &params.midi_input_port,
                 "bl-midi-in",
                 move |stamp, message, midi_datas| {
-                    println!("IN test : {:?}, {:?}", stamp, message);
-                    //let test = RawMidi::new(stamp, message).unwrap();
-                    midi_datas.0.send(stamp).unwrap();
-
                     if midi_datas.3 == 100 {
                         println!("signal recv in connection in");
                         let _ = midi_datas.2.send(true);
                     }
 
                     midi_datas.3 += 1;
-                    //input_callback(
-                    //    &stamp,
-                    //    message,
-                    //    &mut params.cc_flag,
-                    //    conn_out.as_mut(),
-                    //    &midi_datas[0],
-                    //    &midi_datas[1],
-                    //);
-                    //let midi_datas_locked = midi_datas.lock().unwrap();
-                    //println!(
-                    //    "RX Datas from input_callback : {:?}",
-                    //    midi_datas_locked.get_rx_data()
-                    //);
+                    input_callback(
+                        &stamp,
+                        message,
+                        &mut params.cc_flag,
+                        conn_out.as_mut(),
+                        &midi_datas.0,
+                        &midi_datas.1,
+                    );
                 },
                 (rx, tx, ext_signal, 0),
             );
@@ -112,36 +100,30 @@ fn input_callback(
     mesg: &[u8],
     cc_flag: &mut CCflag,
     pass_trough: Option<&mut MidiOutputConnection>,
-    //midi_struct: &mut Arc<Mutex<MiBlRustProcess>>,
-    //_tx: Arc<Mutex<Sender<u8>>>,
-    //rx: &mut Arc<Mutex<Sender<u8>>>,
-    tx: &Sender<u64>,
-    rx: &Sender<u64>,
+    tx: &Sender<(u64, Vec<u8>)>,
+    rx: &Sender<(u64, Vec<u8>)>,
 ) {
-    rx.send(*stamp).unwrap();
-    tx.send(*stamp).unwrap();
-    //let raw_midi = RawMidi::new(*stamp, mesg).unwrap();
+    let raw_midi = RawMidi::new(*stamp, mesg).unwrap();
+    let mesg_channel = (raw_midi.delta_frames_clone(), raw_midi.data_clone());
 
-    //let midi_result = process_midi_mesg(stamp, &raw_midi, "MC", cc_flag);
+    rx.send(mesg_channel).unwrap();
 
-    // Update the rx field
-    //let mut midi_struct_locked = midi_struct.lock().unwrap();
-    //midi_struct_locked.set_rx(*stamp, mesg);
-    //
-    //match midi_result {
-    //    Ok(mesg) => match mesg.to_send {
-    //        Some(mesg) => {
-    //            info!("Connection out found! Midi mesg : {:04X?}", mesg.data());
-    //
-    //            match pass_trough.unwrap().send(mesg.data()) {
-    //                Ok(_) => (),
-    //                Err(err) => {
-    //                    error!("Error when sending midi mesg to output : {}", err)
-    //                }
-    //            }
-    //        }
-    //        None => info!("Nothing to send, skip it…"),
-    //    },
-    //    Err(err) => println!("No midi mesg output : {}", err),
-    //};
+    let midi_result = process_midi_mesg(&raw_midi, "MC", cc_flag);
+
+    match midi_result {
+        Ok(mesg) => match mesg.to_send {
+            Some(mesg) => {
+                info!("Connection out found! Midi mesg : {:04X?}", mesg.data());
+
+                match pass_trough.unwrap().send(mesg.data()) {
+                    Ok(_) => (),
+                    Err(err) => {
+                        error!("Error when sending midi mesg to output : {}", err)
+                    }
+                }
+            }
+            None => info!("Nothing to send, skip it…"),
+        },
+        Err(err) => println!("No midi mesg output : {}", err),
+    };
 }
