@@ -1,11 +1,15 @@
 [package]
 name = "mibllib"
 version = "0.1.0"
+authors = ["Axel Polin <axel.polin@scenabre.art>"]
 edition = "2021"
+description = "A midi Rust lib to expose Mackie Control Device to python in a friendly way"
+homepage = "https://chamanyte.dev"
+license = "GPL-2.0-or-later"
+keywords = ["gamedev", "graphics", "cgi"]
+categories = ["graphics", "game-development", "multimedia", "science", "simulation"]
 
 [dependencies]
-# rainout = { path = "deps/rainout", features = ["midi","jack-linux"]}
-# clap = "4"
 log = "*"
 simple_logger = "5"
 thiserror = "2"
