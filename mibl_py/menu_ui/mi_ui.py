@@ -17,6 +17,9 @@ node_categories = [
         NodeItem("NODE_MI_BL_value_input"),
         NodeItem("NODE_MI_BL_object"),
     ]),
+    MI_BL_NodeCategory('MIDI_PARAMS', "Midi Utils", items=[
+        NodeItem("NODE_MI_BL_MIDI_Params"),
+    ]),
     MI_BL_NodeCategory('OUTPUT', "Output", items=[
         NodeItem("NODE_MI_BL_group_output"),
     ]),
