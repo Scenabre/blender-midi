@@ -94,33 +94,36 @@ fn mi_start_server(mibl: &MiBlRustProcess) {
     let (tx_channel_rx, rx_channel_rx) = channel::<u64>();
     let (tx_channel_tx, rx_channel_tx) = channel::<u64>();
     let (tx_signal, rx_signal) = channel::<bool>();
+    let int_signal = Arc::new(Mutex::new(false));
+    let mut int_signal_arc = Arc::clone(&int_signal);
 
     let mut last_stamp = 0;
 
-    spawn(move || {
+    let midi_audio_thread = spawn(move || {
         let sender_rx = tx_channel_rx.clone();
         let sender_tx = tx_channel_tx.clone();
         let sender_signal = tx_signal.clone();
 
-        init_midi_audio(sender_tx, sender_rx, sender_signal);
+        init_midi_audio(sender_tx, sender_rx, sender_signal, &mut int_signal_arc);
     });
 
-    let mut int_signal = false;
-
     loop {
-        if int_signal {
-            sleep(Duration::from_secs(2));
+        let ext_signal = mibl.get_signal();
+
+        if ext_signal {
+            *int_signal.lock().unwrap() = true;
+            midi_audio_thread.join().unwrap();
             return;
         }
 
-        for i in rx_channel_rx.recv().iter() {
-            mibl.set_rx_stamp(*i);
+        if let Ok(stamp) = rx_channel_rx.try_recv() {
+            mibl.set_rx_stamp(stamp)
         }
 
-        for signal in rx_signal.recv().iter() {
-            mibl.set_close_signal(*signal);
-            int_signal = *signal;
+        if let Ok(signal) = rx_signal.try_recv() {
+            mibl.set_close_signal(signal)
         }
+
         sleep(Duration::from_millis(100));
     }
 }
