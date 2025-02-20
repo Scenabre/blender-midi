@@ -8,6 +8,7 @@ mibl_thread = None
 
 
 def update_loop(thread):
+    count = 0
     try:
         while True:
             signal = mibl_rs.get_signal()
@@ -15,17 +16,21 @@ def update_loop(thread):
             if signal:
                 print("Getting stop signal !")
                 thread.join()
-                time.sleep(2)
                 sys.exit()
 
             print("Try get value from python :)")
             stamp = mibl_rs.get_rx_stamp()
             print("----:", stamp)
+
+            if count == 10:
+                mibl_rs.set_close_signal(True)
+
             time.sleep(.4)
+            count += 1
     except KeyboardInterrupt:
         print("SIGINT RECEIVE")
+        mibl_rs.set_close_signal(True)
         thread.join()
-        sys.exit()
         print("Exiting…")
 
 
