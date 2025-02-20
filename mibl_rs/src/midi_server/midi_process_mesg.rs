@@ -58,12 +58,7 @@ const CHROM_RANGE: [&str; 12] = [
     "A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#",
 ];
 
-pub fn process_midi_mesg(
-    stamp: &u64,
-    event: &RawMidi,
-    protocole: &str,
-    cc_flag: &mut CCflag,
-) -> MidiResult {
+pub fn process_midi_mesg(event: &RawMidi, protocole: &str, cc_flag: &mut CCflag) -> MidiResult {
     // CHANNEL VOICE MESG
     // Command  Meaning      # parameters  param 1      param 2
     // 0x80      Note-off    2              key          velocity
@@ -236,8 +231,6 @@ pub fn process_midi_mesg(
         midi_mesg
     }
 
-    let pass_through = event;
-
     let display_event = event.data();
 
     println!(
@@ -247,15 +240,15 @@ pub fn process_midi_mesg(
 
     println!("Delta frames : {:?}", event.delta_frames);
 
-    let event = event.data();
+    let event_data = event.data();
 
-    let cmd = event[0];
+    let cmd = event_data[0];
 
     if cmd == 0xFF {
         return Err("User press PANIC on midi device !");
     }
 
-    let midi_mesg_to_send = match trigger_midi_events(stamp, event) {
+    let midi_mesg_to_send = match trigger_midi_events(event.delta_frames(), event_data) {
         Ok(raw_midi) => Some(raw_midi),
         Err(err) => {
             log::warn!("Trigger event dropped in process mesg ! Debug : {}", err);
@@ -270,46 +263,47 @@ pub fn process_midi_mesg(
 
     let clean_cmd = (cmd >> 4) << 4;
 
-    println!("Raw MIDI : {:04X?} {:?}", event, event);
+    println!("Raw MIDI : {:04X?} {:?}", event_data, event_data);
 
     match clean_cmd {
         0x80 | 0x90 => {
-            midi_mesg = process_note(clean_cmd, event[1], event[2]);
+            midi_mesg = process_note(clean_cmd, event_data[1], event_data[2]);
             println!("{}", midi_mesg.name);
         }
         0xA0 => {
-            let poly_key_value = convert_half(event[2]);
+            let poly_key_value = convert_half(event_data[2]);
             midi_mesg = MidiMesg {
                 channel,
                 name: format!(
                     "Poly Key Pressure Aftertouch on {}{}",
-                    get_note_name(event[1]),
-                    get_octave(event[1])
+                    get_note_name(event_data[1]),
+                    get_octave(event_data[1])
                 ),
                 value: poly_key_value,
             };
             println!("{} : {}", midi_mesg.name, midi_mesg.value);
         }
-        0xB0 => match event[1] {
+        0xB0 => match event_data[1] {
             cc_num if cc_num > 0x3F && cc_num < 0x62 => {
-                midi_mesg = process_cc(cc_num, event[2], None);
+                midi_mesg = process_cc(cc_num, event_data[2], None);
             }
             cc_num if cc_num <= 0x1F && !cc_flag.cc_lsb_flag => {
-                if channel == cc_flag.cc_channel && cc_flag.cc_note == event[1] + 0x20 {
+                if channel == cc_flag.cc_channel && cc_flag.cc_note == event_data[1] + 0x20 {
                     cc_flag.cc_lsb_flag = true;
-                    cc_flag.cc_msb_value = event[2];
+                    cc_flag.cc_msb_value = event_data[2];
                     cc_flag.cc_num = cc_num;
                 }
 
                 if !cc_flag.cc_lsb_flag {
-                    midi_mesg = process_cc(cc_num, event[2], None);
+                    midi_mesg = process_cc(cc_num, event_data[2], None);
                 }
             }
             cc_num if cc_num > 0x1F && cc_num < 0x40 => {
                 if !cc_flag.cc_lsb_flag {
-                    midi_mesg = process_cc(cc_num, event[2], None);
+                    midi_mesg = process_cc(cc_num, event_data[2], None);
                 } else {
-                    midi_mesg = process_cc(cc_flag.cc_num, cc_flag.cc_msb_value, Some(event[2]));
+                    midi_mesg =
+                        process_cc(cc_flag.cc_num, cc_flag.cc_msb_value, Some(event_data[2]));
                     cc_flag.cc_lsb_flag = false;
                 }
             }
@@ -317,7 +311,7 @@ pub fn process_midi_mesg(
         },
         0xC0 => println!("Command not used in Blender Midi : {:04X?}", cmd),
         0xD0 => {
-            let chan_press_value = convert_half(event[1]);
+            let chan_press_value = convert_half(event_data[1]);
 
             println!("Channel Pressure Aftertouch : {}", chan_press_value);
 
@@ -328,15 +322,15 @@ pub fn process_midi_mesg(
             };
         }
         0xE0 => {
-            midi_mesg = process_pitch_bend((event[1], event[2]));
+            midi_mesg = process_pitch_bend((event_data[1], event_data[2]));
         }
-        0xF0 => process_sys(event),
-        _ => log::warn!("Unkown event : {:04X?}", event),
+        0xF0 => process_sys(event_data),
+        _ => log::warn!("Unkown event : {:04X?}", event_data),
     }
 
     let midi_to_send: MidiProcess = MidiProcess {
         result: midi_mesg,
-        to_send: midi_mesg_to_send, //Some(*pass_through), //midi_mesg_to_send,
+        to_send: midi_mesg_to_send,
     };
 
     Ok(midi_to_send)

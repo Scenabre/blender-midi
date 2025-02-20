@@ -12,10 +12,10 @@ use crate::midi_server::container::{RawMidi, MAX_MIDI_MSG_SIZE};
 // 0xE0      Pitch bend  2              lsb (7 bits) msb (7 bits)
 // 0xF0      (non-musical commands)
 
-pub fn convert_value_to_lsb_msb(value: f32) -> [u8; 2] {
+pub fn convert_value_to_lsb_msb(value: f32) -> (u8, u8) {
     match value {
-        value if value == 0.0 => [0, 0],
-        value if value == 1.0 => [0x7C, 0x7F],
+        value if value == 0.0 => (0, 0),
+        value if value == 1.0 => (0x7C, 0x7F),
         _ => {
             let u16_value = (value * 16384.0).round() as u16;
             let lsb_value = (u16_value & 0xff) as u8;
@@ -27,12 +27,12 @@ pub fn convert_value_to_lsb_msb(value: f32) -> [u8; 2] {
                 (u16_reverse_value as f32) / 16384.0
             );
 
-            [lsb_value, msb_value]
+            (lsb_value, msb_value)
         }
     }
 }
 
-pub fn make_raw_midi_mesg(stamp: &u64, mesg: [u8; MAX_MIDI_MSG_SIZE]) -> Result<RawMidi, String> {
+pub fn make_raw_midi_mesg(stamp: &u64, mesg: &Vec<u8>) -> Result<RawMidi, String> {
     // Note off = NOFF
     // Note on = NON
     // Aftertouch = AT
@@ -53,7 +53,7 @@ pub fn make_raw_midi_mesg(stamp: &u64, mesg: [u8; MAX_MIDI_MSG_SIZE]) -> Result<
     //// Create a new slice with the final length
     //let result = &raw_midi.data()[..final_len];
 
-    let raw_midi_mesg: Result<RawMidi, String> = match RawMidi::new(*stamp, &mesg) {
+    let raw_midi_mesg: Result<RawMidi, String> = match RawMidi::new(*stamp, mesg) {
         Ok(raw_midi) => Ok(raw_midi),
         Err(err) => {
             log::error!(
@@ -68,8 +68,8 @@ pub fn make_raw_midi_mesg(stamp: &u64, mesg: [u8; MAX_MIDI_MSG_SIZE]) -> Result<
     raw_midi_mesg
 }
 
-fn make_raw_midi_mesg_fast(stamp: &u64, mesg: [u8; MAX_MIDI_MSG_SIZE]) -> Result<RawMidi, String> {
-    let raw_midi_mesg: Result<RawMidi, String> = match RawMidi::new(*stamp, &mesg) {
+fn make_raw_midi_mesg_fast(stamp: &u64, mesg: &Vec<u8>) -> Result<RawMidi, String> {
+    let raw_midi_mesg: Result<RawMidi, String> = match RawMidi::new(*stamp, mesg) {
         Ok(raw_midi) => Ok(raw_midi),
         Err(err) => {
             log::error!(
@@ -100,21 +100,19 @@ fn make_sysex_mesg(time: u64, lcd_num: u8, line_num: u8, mesg: String) -> Result
 
     let position: u8 = ((lcd_num - 1) + ((line_num - 1) * 8)) * 7;
 
-    let mut midi_data: [u8; MAX_MIDI_MSG_SIZE] = [0; MAX_MIDI_MSG_SIZE];
+    let mut midi_data: Vec<u8> = Vec::new();
 
-    let prefix = [0xF0, 0x00, 0x00, 0x66, 0x14, 0x12, position];
+    let mut prefix = vec![0xF0, 0x00, 0x00, 0x66, 0x14, 0x12, position];
 
     let content = mesg.into_bytes();
 
-    let mesg_len = content.len();
+    midi_data.append(&mut prefix);
 
-    midi_data[0..7].copy_from_slice(&prefix);
+    midi_data.extend(content);
 
-    midi_data[7..(7 + mesg_len)].copy_from_slice(&content);
+    midi_data.push(0xF7);
 
-    midi_data[7 + mesg_len] = 0xF7;
-
-    let raw_midi_mesg = make_raw_midi_mesg_fast(&time, midi_data).unwrap();
+    let raw_midi_mesg = make_raw_midi_mesg_fast(&time, &midi_data).unwrap();
 
     Ok(raw_midi_mesg)
 }
@@ -127,7 +125,6 @@ pub fn send_midi_mesg(mesg: &[RawMidi]) -> bool {
 pub fn initialize_mc_device() -> Result<Vec<RawMidi>, String> {
     log::info!("Initilizing midi device : ");
     let mut raw_midi_mesg: Vec<RawMidi> = Vec::new();
-    let mut midi_mesg: [u8; MAX_MIDI_MSG_SIZE] = [0; MAX_MIDI_MSG_SIZE];
 
     let pitch_bend_prefix = 0xE0;
 
@@ -139,16 +136,19 @@ pub fn initialize_mc_device() -> Result<Vec<RawMidi>, String> {
     //raw_midi_mesg.push(make_raw_midi_mesg_fast(time,sysx_mesg).unwrap());
     //raw_midi_mesg.push(make_raw_midi_mesg_fast(time,sysx_mesg_2).unwrap());
 
-    for pb_idx in 0..11 {
+    for pb_idx in 0..9 {
+        let mut midi_mesg: Vec<u8> = Vec::with_capacity(MAX_MIDI_MSG_SIZE);
         let pb_num = pitch_bend_prefix + pb_idx;
-        let value_out = convert_value_to_lsb_msb(1.0);
-        midi_mesg[0] = pb_num;
-        midi_mesg[1..3].copy_from_slice(&value_out);
 
-        match make_raw_midi_mesg_fast(&time, midi_mesg) {
+        let (lsb, msb) = convert_value_to_lsb_msb(0.75);
+
+        midi_mesg.push(pb_num);
+        midi_mesg.push(lsb);
+        midi_mesg.push(msb);
+
+        match make_raw_midi_mesg_fast(&time, &midi_mesg) {
             Ok(raw_midi) => {
                 log::info!("Initializing slider #{}", pb_idx);
-
                 raw_midi_mesg.push(raw_midi);
             }
             Err(..) => {
@@ -157,11 +157,15 @@ pub fn initialize_mc_device() -> Result<Vec<RawMidi>, String> {
             }
         };
 
+        midi_mesg.clear();
+
         //time += 100;
     }
 
     log::info!("Initilizing LCD display #1");
     raw_midi_mesg.push(make_sysex_mesg(time + 1000, 1, 1, "TEST".to_string()).unwrap());
+    log::info!("Initilizing LCD display #1");
+    raw_midi_mesg.push(make_sysex_mesg(time + 1000, 2, 1, ":)".to_string()).unwrap());
 
     Ok(raw_midi_mesg)
 }

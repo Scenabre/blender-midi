@@ -1,5 +1,7 @@
+use std::u8;
+
 use crate::midi_server::container::{RawMidi, MAX_MIDI_MSG_SIZE};
-use crate::midi_server::midi_send_mesg::{convert_value_to_lsb_msb, make_raw_midi_mesg};
+use crate::midi_server::midi_send_mesg::{self, convert_value_to_lsb_msb, make_raw_midi_mesg};
 
 const SIZE: usize = 16;
 const EPSILON: f32 = 0.01;
@@ -48,31 +50,32 @@ pub fn trigger_midi_events(stamp: &u64, mesg: &[u8]) -> Result<RawMidi, String> 
     };
 
     let triggers: Vec<&Event> = vec![&cc_60_cw_event, &cc_60_ccw_event];
-    let data: [u8; 3] = [0, 0, 0];
 
-    let mut trigger_result: RawMidi = RawMidi::new(*stamp, &data).unwrap();
+    let mut trigger_result: RawMidi = RawMidi::new(*stamp, mesg).unwrap();
 
     for trigger in triggers.iter() {
         if mesg == trigger.mesg_in {
             println!("Event triggered : {}", trigger.name);
 
-            let mut midi_mesg: [u8; MAX_MIDI_MSG_SIZE] = [0; MAX_MIDI_MSG_SIZE];
+            let mut midi_mesg = Vec::<u8>::with_capacity(MAX_MIDI_MSG_SIZE);
 
             match trigger.index {
                 0 => {
-                    let value_out = convert_value_to_lsb_msb(1.0);
-                    midi_mesg[0] = cc_60_ccw_event.cmd_out.unwrap_or_default();
-                    midi_mesg[1..3].copy_from_slice(&value_out);
+                    let (lsb, msb) = convert_value_to_lsb_msb(1.0);
+                    midi_mesg.push(cc_60_ccw_event.cmd_out.unwrap_or_default());
+                    midi_mesg.push(lsb);
+                    midi_mesg.push(msb);
                 }
                 1 => {
-                    let value_out = convert_value_to_lsb_msb(0.1);
-                    midi_mesg[0] = cc_60_cw_event.cmd_out.unwrap_or_default();
-                    midi_mesg[1..3].copy_from_slice(&value_out);
+                    let (lsb, msb) = convert_value_to_lsb_msb(1.0);
+                    midi_mesg.push(cc_60_cw_event.cmd_out.unwrap_or_default());
+                    midi_mesg.push(lsb);
+                    midi_mesg.push(msb);
                 }
                 _ => log::warn!("Trigger event not implemented yet"),
             }
 
-            trigger_result = make_raw_midi_mesg(stamp, midi_mesg).unwrap();
+            trigger_result = make_raw_midi_mesg(stamp, &midi_mesg).unwrap();
         }
     }
 
