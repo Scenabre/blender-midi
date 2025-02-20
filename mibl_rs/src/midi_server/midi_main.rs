@@ -12,11 +12,16 @@ use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
 
-pub fn init_midi_audio(tx: Sender<u64>, rx: Sender<u64>, ext_signal: Sender<bool>) {
-    SimpleLogger::new()
-        .with_level(log::LevelFilter::Debug)
-        .init()
-        .unwrap();
+pub fn init_midi_audio(
+    tx: Sender<u64>,
+    rx: Sender<u64>,
+    ext_signal: Sender<bool>,
+    int_signal: &mut Arc<Mutex<bool>>,
+) {
+    //SimpleLogger::new()
+    //    .with_level(log::LevelFilter::Debug)
+    //    .init()
+    //    .unwrap();
 
     match setup_client_params() {
         Ok(mut params) => {
@@ -37,19 +42,17 @@ pub fn init_midi_audio(tx: Sender<u64>, rx: Sender<u64>, ext_signal: Sender<bool
             let init_mesgs_len = init_mesgs.len();
 
             for (idx, mesg) in init_mesgs.iter().enumerate() {
-                info!(
-                    "Sending mesg {}/{} : {:04X?}",
-                    (idx + 1),
-                    init_mesgs_len,
-                    mesg.data()
-                );
+                //info!(
+                //    "Sending mesg {}/{} : {:04X?}",
+                //    (idx + 1),
+                //    init_mesgs_len,
+                //    mesg.data()
+                //);
                 let _ = conn_out.as_mut().unwrap().send(mesg.data());
+                sleep(Duration::from_millis(10));
             }
 
             info!("Initialization done!");
-
-            let stop_signal = Arc::new(Mutex::new(false));
-            let stop_signal_arc = Arc::clone(&stop_signal);
 
             let _conn_in = params.midi_input.connect(
                 &params.midi_input_port,
@@ -59,12 +62,12 @@ pub fn init_midi_audio(tx: Sender<u64>, rx: Sender<u64>, ext_signal: Sender<bool
                     //let test = RawMidi::new(stamp, message).unwrap();
                     midi_datas.0.send(stamp).unwrap();
 
-                    if midi_datas.4 == 100 {
+                    if midi_datas.3 == 100 {
+                        println!("signal recv in connection in");
                         let _ = midi_datas.2.send(true);
-                        *midi_datas.3.lock().unwrap() = true;
                     }
 
-                    midi_datas.4 += 1;
+                    midi_datas.3 += 1;
                     //input_callback(
                     //    &stamp,
                     //    message,
@@ -79,7 +82,7 @@ pub fn init_midi_audio(tx: Sender<u64>, rx: Sender<u64>, ext_signal: Sender<bool
                     //    midi_datas_locked.get_rx_data()
                     //);
                 },
-                (rx, tx, ext_signal, stop_signal_arc, 0),
+                (rx, tx, ext_signal, 0),
             );
 
             //let mut count: i32 = 0;
@@ -91,8 +94,10 @@ pub fn init_midi_audio(tx: Sender<u64>, rx: Sender<u64>, ext_signal: Sender<bool
             //    count += 1;
             //}
 
+            let stop_signal_arc = Arc::clone(int_signal);
+
             loop {
-                if *stop_signal.lock().unwrap() {
+                if *stop_signal_arc.lock().unwrap() {
                     return;
                 }
                 sleep(Duration::from_millis(100));
