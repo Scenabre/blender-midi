@@ -1,6 +1,7 @@
 use crate::midi_server::container::{RawMidi, MAX_MIDI_MSG_SIZE};
 use crate::midi_server::midi_main::init_midi_audio;
 use pyo3::prelude::*;
+use simple_logger::SimpleLogger;
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
 use std::thread::{sleep, spawn};
@@ -11,8 +12,8 @@ mod node_utils;
 
 #[derive(Clone, Debug)]
 struct MiBlRustProcessInner {
-    tx_data: [u8; MAX_MIDI_MSG_SIZE],
-    rx_data: [u8; MAX_MIDI_MSG_SIZE],
+    tx_data: Vec<u8>,
+    rx_data: Vec<u8>,
     rx_stamp: u64,
     rx_len: u8,
     close_thread: bool,
@@ -23,8 +24,8 @@ impl MiBlRustProcessInner {
         let close_thread = false;
 
         MiBlRustProcessInner {
-            tx_data: [0; MAX_MIDI_MSG_SIZE],
-            rx_data: [0; MAX_MIDI_MSG_SIZE],
+            tx_data: Vec::with_capacity(MAX_MIDI_MSG_SIZE),
+            rx_data: Vec::with_capacity(MAX_MIDI_MSG_SIZE),
             rx_stamp: 0,
             rx_len: 0,
             close_thread,
@@ -46,12 +47,20 @@ impl MiBlRustProcess {
         MiBlRustProcess { inner: mibl }
     }
 
-    fn get_rx_data(&self) -> [u8; MAX_MIDI_MSG_SIZE] {
-        self.inner.lock().expect("lock not poisoned").rx_data
+    fn get_rx_data(&self) -> Vec<u8> {
+        self.inner
+            .lock()
+            .expect("lock not poisoned")
+            .rx_data
+            .clone()
     }
 
-    fn get_tx_data(&self) -> [u8; MAX_MIDI_MSG_SIZE] {
-        self.inner.lock().expect("lock not poisoned").tx_data
+    fn get_tx_data(&self) -> Vec<u8> {
+        self.inner
+            .lock()
+            .expect("lock not poisoned")
+            .tx_data
+            .clone()
     }
 
     fn get_rx_stamp(&self) -> u64 {
@@ -66,11 +75,11 @@ impl MiBlRustProcess {
         self.inner.lock().expect("lock not poisoned").rx_stamp = stamp;
     }
 
-    fn set_rx_data(&self, rx_data: [u8; MAX_MIDI_MSG_SIZE]) {
+    fn set_rx_data(&self, rx_data: Vec<u8>) {
         self.inner.lock().expect("lock not poisoned").rx_data = rx_data;
     }
 
-    fn set_tx_data(&self, tx_data: [u8; MAX_MIDI_MSG_SIZE]) {
+    fn set_tx_data(&self, tx_data: Vec<u8>) {
         self.inner.lock().expect("lock not poisoned").rx_data = tx_data;
     }
 
@@ -91,8 +100,14 @@ fn mi_start_server(mibl: &MiBlRustProcess) {
     //let duration = Duration::new(10, 0);
     //let start = Instant::now();
 
-    let (tx_channel_rx, rx_channel_rx) = channel::<u64>();
-    let (tx_channel_tx, rx_channel_tx) = channel::<u64>();
+    //SimpleLogger::new()
+    //    .with_level(log::LevelFilter::Debug)
+    //    .without_timestamps()
+    //    .init()
+    //    .unwrap();
+
+    let (tx_channel_rx, rx_channel_rx) = channel::<(u64, Vec<u8>)>();
+    let (tx_channel_tx, rx_channel_tx) = channel::<(u64, Vec<u8>)>();
     let (tx_signal, rx_signal) = channel::<bool>();
     let int_signal = Arc::new(Mutex::new(false));
     let mut int_signal_arc = Arc::clone(&int_signal);
@@ -116,8 +131,9 @@ fn mi_start_server(mibl: &MiBlRustProcess) {
             return;
         }
 
-        if let Ok(stamp) = rx_channel_rx.try_recv() {
-            mibl.set_rx_stamp(stamp)
+        if let Ok((stamp, rx_data)) = rx_channel_rx.try_recv() {
+            mibl.set_rx_stamp(stamp);
+            mibl.set_rx_data(rx_data);
         }
 
         if let Ok(signal) = rx_signal.try_recv() {
