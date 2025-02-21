@@ -29,8 +29,13 @@ class PropsMiBl(PropertyGroup):
         description="Toggle Mackie Device system control",
         default=True
     )
-    mi_midi_channel: IntProperty(
+    mi_midi_channel: IntVectorProperty(
         name="mi_midi_channel",
         description="Wait data from this channel",
-        default=1
+        min=0,
+        max=16,
+        soft_min=1,
+        soft_max=16,
+        size=16,
+        default=tuple([0] * 16)
     )

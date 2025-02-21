@@ -1,13 +1,13 @@
 from bpy.props import FloatProperty
 from bpy.types import NodeSocket, NodeTreeInterfaceSocket
 
-SOCKET_TYPE = 'SOCKET_MI_BL_Test'
+SOCKET_TYPE = 'SOCKET_MI_BL_Midi_Recipe'
 
 
-class SOCKET_MI_BL_Test(NodeSocket):
+class SOCKET_MI_BL_MidiRecipe(NodeSocket):
     """Just a custom socket type for test"""
     bl_idname = SOCKET_TYPE
-    bl_label = 'mi_bl_socket_test'
+    bl_label = 'mi_bl_socket_midi_recipe'
 
     mibl_float: FloatProperty(
         name="mibl_float",
@@ -15,17 +15,14 @@ class SOCKET_MI_BL_Test(NodeSocket):
     )
 
     def draw(self, context, layout, node, text):
-        if self.is_output or self.is_linked:
-            layout.label(text=text)
-        else:
-            layout.prop(self, "mibl_float", text=text)
+        layout.label(text=text)
 
     @classmethod
     def draw_color_simple(cls):
         return (1.0, 0.4, 0.216, 0.5)
 
 
-class SOCKET_INT_MI_BL_Test(NodeTreeInterfaceSocket):
+class SOCKET_INT_MI_BL_Midirecipe(NodeTreeInterfaceSocket):
     bl_socket_idname = SOCKET_TYPE
 
     default_value: FloatProperty(

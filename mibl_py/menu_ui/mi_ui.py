@@ -19,6 +19,11 @@ node_categories = [
     ]),
     MI_BL_NodeCategory('MIDI_PARAMS', "Midi Utils", items=[
         NodeItem("NODE_MI_BL_MIDI_Params"),
+        NodeItem("NODE_MI_BL_MIDI_LCD"),
+        NodeItem("NODE_MI_BL_MIDI_COOK"),
+        NodeItem("NODE_MI_BL_MIDI_Trigger_Note"),
+        NodeItem("NODE_MI_BL_MIDI_Trigger_Fader"),
+        NodeItem("NODE_MI_BL_MIDI_Trigger_Pan"),
     ]),
     MI_BL_NodeCategory('OUTPUT', "Output", items=[
         NodeItem("NODE_MI_BL_group_output"),
