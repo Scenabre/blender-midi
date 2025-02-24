@@ -4,3 +4,4 @@ Cargo.lock
 /mibl_py/wheels/
 /mibl_py/*.zip
 Test.blend*
+.ruff_cache
