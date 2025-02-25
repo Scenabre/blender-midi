@@ -18,12 +18,12 @@ def update_loop(thread):
                 thread.join()
                 sys.exit()
 
-            print("Try get value from python :)")
-            stamp = mibl_rs.get_rx_stamp()
-            print("----:", stamp)
+            # print("Try get value from python :)")
+            # stamp = mibl_rs.get_rx_stamp()
+            # print("----:", stamp)
 
-            if count == 10:
-                mibl_rs.set_close_signal(True)
+            # if count == 100:
+            #     mibl_rs.set_close_signal(True)
 
             time.sleep(.4)
             count += 1
