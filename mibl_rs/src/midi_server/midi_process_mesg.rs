@@ -1,4 +1,4 @@
-use crate::midi_server::container::RawMidi;
+use crate::midi_server::container::{Event, RawMidi};
 use crate::midi_server::midi_event::trigger_midi_events;
 //use rainout::{ProcessInfo, RawMidi};
 
@@ -58,7 +58,12 @@ const CHROM_RANGE: [&str; 12] = [
     "A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#",
 ];
 
-pub fn process_midi_mesg(event: &RawMidi, protocole: &str, cc_flag: &mut CCflag) -> MidiResult {
+pub fn process_midi_mesg(
+    event: &RawMidi,
+    protocole: &str,
+    cc_flag: &mut CCflag,
+    triggers: Option<&Vec<Event>>,
+) -> MidiResult {
     // CHANNEL VOICE MESG
     // Command  Meaning      # parameters  param 1      param 2
     // 0x80      Note-off    2              key          velocity
@@ -248,12 +253,15 @@ pub fn process_midi_mesg(event: &RawMidi, protocole: &str, cc_flag: &mut CCflag)
         return Err("User press PANIC on midi device !");
     }
 
-    let midi_mesg_to_send = match trigger_midi_events(event.delta_frames(), event_data) {
-        Ok(raw_midi) => Some(raw_midi),
-        Err(err) => {
-            log::warn!("Trigger event dropped in process mesg ! Debug : {}", err);
-            None
-        }
+    let midi_mesg_to_send = match triggers {
+        Some(triggers) => match trigger_midi_events(event.delta_frames(), event_data, triggers) {
+            Ok(raw_midi) => Some(raw_midi),
+            Err(err) => {
+                log::warn!("Trigger event dropped in process mesg ! Debug : {}", err);
+                None
+            }
+        },
+        None => None,
     };
 
     let channel: u8 = get_channel(cmd);

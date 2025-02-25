@@ -1,11 +1,11 @@
 use log::{error, info};
 use midir::MidiOutputConnection;
 
-use crate::midi_server::container::RawMidi;
+use crate::midi_server::container::{Event, RawMidi};
+use crate::midi_server::midi_event::craft_recipe;
 use crate::midi_server::midi_process_mesg::{process_midi_mesg, CCflag};
 use crate::midi_server::midi_send_mesg::initialize_mc_device;
 use crate::midi_server::setup_client_params::setup_client_params;
-use crate::MiBlRustProcess;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
@@ -49,18 +49,17 @@ pub fn init_midi_audio(
                 sleep(Duration::from_millis(10));
             }
 
+            let triggers_events = match craft_recipe(&true, Some(&vec![[0x90, 0x18, 0x7F]])) {
+                Ok(events) => events,
+                Err(err) => panic!("Unable to create the trigger table ! {}", err),
+            };
+
             info!("Initialization done!");
 
             let _conn_in = params.midi_input.connect(
                 &params.midi_input_port,
                 "bl-midi-in",
                 move |stamp, message, midi_datas| {
-                    if midi_datas.3 == 100 {
-                        println!("signal recv in connection in");
-                        let _ = midi_datas.2.send(true);
-                    }
-
-                    midi_datas.3 += 1;
                     input_callback(
                         &stamp,
                         message,
@@ -68,9 +67,10 @@ pub fn init_midi_audio(
                         conn_out.as_mut(),
                         &midi_datas.0,
                         &midi_datas.1,
+                        Some(&midi_datas.3),
                     );
                 },
-                (rx, tx, ext_signal, 0),
+                (rx, tx, ext_signal, triggers_events),
             );
 
             //let mut count: i32 = 0;
@@ -102,13 +102,14 @@ fn input_callback(
     pass_trough: Option<&mut MidiOutputConnection>,
     tx: &Sender<(u64, Vec<u8>)>,
     rx: &Sender<(u64, Vec<u8>)>,
+    triggers: Option<&Vec<Event>>,
 ) {
     let raw_midi = RawMidi::new(*stamp, mesg).unwrap();
     let mesg_channel = (raw_midi.delta_frames_clone(), raw_midi.data_clone());
 
     rx.send(mesg_channel).unwrap();
 
-    let midi_result = process_midi_mesg(&raw_midi, "MC", cc_flag);
+    let midi_result = process_midi_mesg(&raw_midi, "MC", cc_flag, triggers);
 
     match midi_result {
         Ok(mesg) => match mesg.to_send {

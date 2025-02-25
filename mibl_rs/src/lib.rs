@@ -1,5 +1,6 @@
 use crate::midi_server::container::{RawMidi, MAX_MIDI_MSG_SIZE};
 use crate::midi_server::midi_main::init_midi_audio;
+use midi_server::container::Event;
 use pyo3::prelude::*;
 use simple_logger::SimpleLogger;
 use std::sync::mpsc::channel;
@@ -17,18 +18,20 @@ struct MiBlRustProcessInner {
     rx_stamp: u64,
     rx_len: u8,
     close_thread: bool,
+    use_sysevent: bool,
+    sysevent: Event,
 }
 
 impl MiBlRustProcessInner {
     fn new() -> Self {
-        let close_thread = false;
-
         MiBlRustProcessInner {
             tx_data: Vec::with_capacity(MAX_MIDI_MSG_SIZE),
             rx_data: Vec::with_capacity(MAX_MIDI_MSG_SIZE),
             rx_stamp: 0,
             rx_len: 0,
-            close_thread,
+            close_thread: false,
+            use_sysevent: true,
+            sysevent: Event::default(),
         }
     }
 }

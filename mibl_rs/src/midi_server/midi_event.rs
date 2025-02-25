@@ -1,25 +1,17 @@
 use std::u8;
 
-use crate::midi_server::container::{RawMidi, MAX_MIDI_MSG_SIZE};
+use rand::seq::IndexedRandom;
+
+use crate::midi_server::container::{Event, RawMidi, MAX_MIDI_MSG_SIZE};
 use crate::midi_server::midi_send_mesg::{self, convert_value_to_lsb_msb, make_raw_midi_mesg};
+use crate::midi_server::sys_event::SYS_EVENT_ARRAY;
 
 const SIZE: usize = 16;
 const EPSILON: f32 = 0.01;
 
-#[derive(Debug)]
-struct Event {
-    index: u8,
-    name: String,
-    mesg_in: Vec<u8>,
-    cmd_out: Option<u8>,
-    value_out: Option<Vec<u8>>,
-    mod_rule: u8,            // 0 in->out, 1 in+x = out, 2 in-x = out,
-    mod_amount: Option<f32>, // Increase/Descrease by
-}
-
 // CHANNEL VOICE MESG
 // Command  Meaning      # parameters  param 1      param 2
-// 0x80 Note-off    2              key          velocity
+// 0x80      Note-off    2              key          velocity
 // 0x90      Note-on     2              key          velocity
 // 0xA0      Aftertouch  2              key          touch
 // 0xB0      Cont CTRL   2              ctrl #       ctrl value (0-119)
@@ -28,51 +20,174 @@ struct Event {
 // 0xE0      Pitch bend  2              lsb (7 bits) msb (7 bits)
 // 0xF0     (non-musical commands)
 
-pub fn trigger_midi_events(stamp: &u64, mesg: &[u8]) -> Result<RawMidi, String> {
-    let cc_60_ccw_event: Event = Event {
-        index: 0,
-        name: "CC #60 CCW → PB #1".to_string(),
-        mesg_in: vec![0xB0, 0x3C, 0x41],
-        cmd_out: Some(0xE1),
-        value_out: None,
-        mod_rule: 0,
-        mod_amount: Some(EPSILON),
-    };
+pub fn craft_recipe(
+    use_sys: &bool,
+    custom_events: Option<&Vec<[u8; 3]>>,
+) -> Result<Vec<Event>, String> {
+    let mut events: Vec<Event> = Vec::new();
+    let mut event_idx: u8 = 0;
 
-    let cc_60_cw_event: Event = Event {
-        index: 1,
-        name: "CC #60 CW → PB #1".to_string(),
-        mesg_in: vec![0xB0, 0x3C, 0x01],
-        cmd_out: Some(0xE1),
-        value_out: Some(vec![0, 0]),
-        mod_rule: 0,
-        mod_amount: None,
-    };
+    if *use_sys {
+        for (idx, (value, name)) in SYS_EVENT_ARRAY.iter().enumerate() {
+            if *value != 0x3C {
+                let event = Event::new(
+                    event_idx as u8,
+                    name.to_string(),
+                    vec![0x90, *value, 0x7F],
+                    Some(0x80),
+                    vec![*value, 0x40].into(),
+                    0,
+                    None,
+                );
+                match event {
+                    Ok(ev) => events.push(ev),
+                    Err(err) => panic!("{}", err),
+                }
+                event_idx = idx as u8
+            }
+        }
+    }
 
-    let triggers: Vec<&Event> = vec![&cc_60_cw_event, &cc_60_ccw_event];
+    match custom_events {
+        Some(custom_events) => {
+            for custom_event in custom_events {
+                match custom_event[0] {
+                    0x90 => {
+                        let name: Option<String> = match custom_event[1] {
+                            0x00..=0x07 => Some(
+                                "Rec track button #".to_string() + &custom_event[1].to_string(),
+                            ),
+                            0x08..=0x0F => Some(
+                                "Solo track button #".to_string()
+                                    + &(custom_event[1] - 0x07).to_string(),
+                            ),
+                            0x10..=0x17 => Some(
+                                "Mute track button #".to_string()
+                                    + &(custom_event[1] ^ 0x10).to_string(),
+                            ),
 
-    let mut trigger_result: RawMidi = RawMidi::new(*stamp, mesg).unwrap();
+                            0x18..=0x1F => Some(
+                                "Select track button #".to_string()
+                                    + &((custom_event[1] ^ 0x10) - 0x07).to_string(),
+                            ),
+                            0x20..=0x27 => Some(
+                                "Pan click track button #".to_string()
+                                    + &(custom_event[1] ^ 0x20).to_string(),
+                            ),
+                            0x32 => Some("Main track flip button".to_string()),
+                            _ => None,
+                        };
+
+                        if name.is_some() {
+                            let event = Event::new(
+                                event_idx,
+                                name.unwrap(),
+                                vec![0x90, custom_event[1], 0x7F],
+                                Some(0x80),
+                                vec![custom_event[1], 0x40].into(),
+                                0,
+                                None,
+                            );
+
+                            match event {
+                                Ok(ev) => events.push(ev),
+                                Err(err) => panic!("{}", err),
+                            }
+
+                            event_idx += 1;
+                        }
+                    }
+                    0xB0 => {
+                        let name = (custom_event[1] ^ 0x10).to_string();
+
+                        if custom_event[2] == 0x01 || custom_event[2] == 0x41 {
+                            let event = Event::new(
+                                event_idx,
+                                name,
+                                vec![0xB0, custom_event[1], custom_event[2]],
+                                Some(0xB0),
+                                vec![0xB0, custom_event[1], custom_event[2]].into(),
+                                0,
+                                None,
+                            );
+
+                            match event {
+                                Ok(ev) => events.push(ev),
+                                Err(err) => panic!("{}", err),
+                            }
+
+                            event_idx += 1;
+                        }
+                    }
+                    _ => (),
+                }
+            }
+
+            // Fader Ctrl :
+            // Pan Click : 0020 -> 0027
+            // Pan CCW|CW CC : 0010 -> 0017  0041|0001
+            // Rec : 0000 -> 0007
+            // Solo : 0008 -> 000F
+            // Mute : 0010 -> 0017
+            // Select : 0018 -> 001F
+            // Main Flip : 0032
+
+            // Pitch Bend (Fader)
+            // PB # by channel : 00E0->00E8
+            // PB On/Off : 0068->0070
+
+            println!("Sys events build :");
+            for (idx, event) in events.iter().enumerate() {
+                println!("Event #{} : {:?}", idx, event);
+            }
+        }
+        None => (),
+    }
+
+    Ok(events)
+}
+
+pub fn trigger_midi_events(
+    stamp: &u64,
+    mesg: &[u8],
+    triggers: &Vec<Event>,
+) -> Result<Option<RawMidi>, String> {
+    //let cc_60_ccw_event: Event = Event {
+    //    index: 0,
+    //    name: "CC #60 CCW → PB #1".to_string(),
+    //    mesg_in: vec![0xB0, 0x3C, 0x41],
+    //    cmd_out: Some(0xE1),
+    //    value_out: None,
+    //    mod_rule: 0,
+    //    mod_amount: Some(EPSILON),
+    //};
+    //
+    //let cc_60_cw_event: Event = Event {
+    //    index: 1,
+    //    name: "CC #60 CW → PB #1".to_string(),
+    //    mesg_in: vec![0xB0, 0x3C, 0x01],
+    //    cmd_out: Some(0xE1),
+    //    value_out: Some(vec![0, 0]),
+    //    mod_rule: 0,
+    //    mod_amount: None,
+    //};
+    //
+    //let triggers: Vec<&Event> = vec![&cc_60_cw_event, &cc_60_ccw_event];
+
+    let mut trigger_result: RawMidi = RawMidi::default();
 
     for trigger in triggers.iter() {
-        if mesg == trigger.mesg_in {
-            println!("Event triggered : {}", trigger.name);
+        if mesg == trigger.get_mesg_in() {
+            println!(
+                "Event triggered {} : {}",
+                trigger.get_index(),
+                trigger.get_name()
+            );
 
             let mut midi_mesg = Vec::<u8>::with_capacity(MAX_MIDI_MSG_SIZE);
 
-            match trigger.index {
-                0 => {
-                    let (lsb, msb) = convert_value_to_lsb_msb(1.0);
-                    midi_mesg.push(cc_60_ccw_event.cmd_out.unwrap_or_default());
-                    midi_mesg.push(lsb);
-                    midi_mesg.push(msb);
-                }
-                1 => {
-                    let (lsb, msb) = convert_value_to_lsb_msb(1.0);
-                    midi_mesg.push(cc_60_cw_event.cmd_out.unwrap_or_default());
-                    midi_mesg.push(lsb);
-                    midi_mesg.push(msb);
-                }
-                _ => log::warn!("Trigger event not implemented yet"),
+            if let Some(data) = trigger.get_mesg_data() {
+                midi_mesg.extend(data)
             }
 
             trigger_result = make_raw_midi_mesg(stamp, &midi_mesg).unwrap();
