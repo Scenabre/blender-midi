@@ -20,6 +20,7 @@ struct MiBlRustProcessInner {
     close_thread: bool,
     use_sysevent: bool,
     sysevent: Event,
+    signals: Vec<String>,
 }
 
 impl MiBlRustProcessInner {
@@ -32,6 +33,7 @@ impl MiBlRustProcessInner {
             close_thread: false,
             use_sysevent: true,
             sysevent: Event::default(),
+            signals: Vec::new(),
         }
     }
 }
@@ -92,6 +94,18 @@ impl MiBlRustProcess {
 
     fn get_signal(&self) -> bool {
         self.inner.lock().expect("lock not poisoned").close_thread
+    }
+
+    fn set_sys_signals(&self, signals: Vec<String>) {
+        self.inner.lock().expect("lock not poisoned").signals = signals;
+    }
+
+    fn get_sys_signals(&self) -> Vec<String> {
+        self.inner
+            .lock()
+            .expect("lock not poisoned")
+            .signals
+            .clone()
     }
 
     fn mi_start_server_allow_thread(&self, py: Python) {
