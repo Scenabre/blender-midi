@@ -68,7 +68,7 @@ pub fn craft_recipe(
 
     if let Some(custom_events) = custom_events {
         for custom_event in custom_events {
-            match custom_event[0] {
+            let event: Option<Event> = match custom_event[0] {
                 0x90 => {
                     let name: Option<String> = match custom_event[1] {
                         0x00..=0x07 => {
@@ -100,7 +100,7 @@ pub fn craft_recipe(
                     };
 
                     if name.is_some() {
-                        let event = Event::new(
+                        match Event::new(
                             event_idx,
                             name.unwrap(),
                             vec![0x90, custom_event[1], 0x7F],
@@ -108,21 +108,21 @@ pub fn craft_recipe(
                             vec![custom_event[1], 0x40].into(),
                             0,
                             None,
-                        );
-
-                        match event {
-                            Ok(ev) => events.push(ev),
-                            Err(err) => panic!("{}", err),
-                        }
-
-                        event_idx += 1;
-                    }
+                        ) {
+                            Ok(ev) => Some(ev),
+                            Err(err) => {
+                                println!("Unable to create custom events : {}", err);
+                                break;
+                            }
+                        };
+                    };
+                    None
                 }
                 0xB0 => {
                     let name = (custom_event[1] ^ 0x10).to_string();
 
                     if custom_event[2] == 0x01 || custom_event[2] == 0x41 {
-                        let event = Event::new(
+                        match Event::new(
                             event_idx,
                             name,
                             vec![0xB0, custom_event[1], custom_event[2]],
@@ -130,18 +130,24 @@ pub fn craft_recipe(
                             vec![0xB0, custom_event[1], custom_event[2]].into(),
                             0,
                             None,
-                        );
-
-                        match event {
-                            Ok(ev) => events.push(ev),
-                            Err(err) => panic!("{}", err),
-                        }
-
-                        event_idx += 1;
+                        ) {
+                            Ok(ev) => Some(ev),
+                            Err(err) => {
+                                println!("Unable to create custom events : {}", err);
+                                break;
+                            }
+                        };
                     }
+                    None
                 }
-                _ => (),
+                _ => None,
+            };
+            match event {
+                Some(ev) => events.push(ev),
+                None => println!("Event not added into queue"),
             }
+
+            event_idx += 1;
         }
 
         // Fader Ctrl :
