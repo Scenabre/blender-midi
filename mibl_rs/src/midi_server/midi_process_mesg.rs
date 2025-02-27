@@ -253,11 +253,11 @@ pub fn process_midi_mesg(
         return Err("User press PANIC on midi device !");
     }
 
-    let midi_mesg_to_send = match triggers {
+    let midi_mesg_to_send: Option<RawMidi> = match triggers {
         Some(triggers) => match trigger_midi_events(event.delta_frames(), event_data, triggers) {
-            Ok(raw_midi) => Some(raw_midi),
+            Ok(raw_midi) => raw_midi,
             Err(err) => {
-                log::warn!("Trigger event dropped in process mesg ! Debug : {}", err);
+                println!("Error when query events vector : {}", err);
                 None
             }
         },
