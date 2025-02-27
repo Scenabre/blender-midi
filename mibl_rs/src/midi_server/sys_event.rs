@@ -1,6 +1,6 @@
 use crate::midi_server::container::Event;
 
-pub const SYS_EVENT_ARRAY: [(u8, &str); 62] = [
+pub const SYS_EVENT_ARRAY: [(u8, &str); 66] = [
     (0x28, "EA_Track"),
     (0x2A, "EA_PAN"),
     (0x2C, "EA_EQ"),
@@ -52,6 +52,7 @@ pub const SYS_EVENT_ARRAY: [(u8, &str); 62] = [
     (0x5D, "TRANS_Stop"),
     (0x5E, "TRANS_Play"),
     (0x5F, "TRANS_Rec"),
+    (0x32, "SWITCH_Flip"),
     (0x2E, "SWITCH_Fader_Bank_Prev"),
     (0x2F, "SWITCH_Fader_Bank_Next"),
     (0x30, "SWITCH_Channel_Prev"),
@@ -63,9 +64,17 @@ pub const SYS_EVENT_ARRAY: [(u8, &str); 62] = [
     (0x64, "PAD_Zoom"),
     (0x65, "TRANS_Scrub"),
     (0x3C, "TRANS_Wheel"),
+    (0x71, "LED_SMPTE"),
+    (0x72, "LED_Beats"),
+    (0x73, "LED_Solo"),
 ];
 
 //pub const
+
+// ** LED **
+// SMPTE Led :	0x71
+//BEATS Led : 0x72
+//RUDE SOLO Led :	0x73
 
 // ** Transport **
 // Marker : 0054
