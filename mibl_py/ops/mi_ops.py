@@ -1,3 +1,4 @@
+import bpy
 from mibllib import MiBlRustProcess
 from bpy.types import Operator
 from bpy.app import timers
@@ -14,7 +15,27 @@ def update_midi_value(context):
     global mibl_rs
     scene = context.scene
     # scene.mibl.mi_input_mesg = mibl_rs.get_rx_data()
-    print("Blender get value from thread :", mibl_rs.get_rx_stamp())
+    sys_signals = mibl_rs.get_sys_signals()
+    print("Blender get value from thread :", sys_signals)
+
+    for idx, signal in enumerate(sys_signals):
+        print("Sys signal found : ", signal)
+
+
+    # TRANSPORT
+    # bpy.ops.screen.keyframe_jump(next=False)
+    # bpy.ops.screen.keyframe_jump(next=True)
+    # bpy.ops.screen.frame_jump(end=True)
+    # bpy.ops.screen.frame_jump(end=False)
+    # bpy.ops.screen.animation_play()
+    # bpy.ops.screen.animation_cancel(restore_frame=True)
+    # bpy.ops.screen.frame_offset(delta=1)
+    # bpy.ops.screen.frame_offset(delta=-1)
+    #
+    # UTILS
+    # bpy.ops.wm.save_mainfile()
+    # bpy.ops.ed.undo()
+
     return 1.0  # update interval 1s
 
 
