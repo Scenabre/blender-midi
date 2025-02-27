@@ -6,7 +6,7 @@ pub fn split_digits(number_to_split: &usize, vector_size: u8) -> Vec<u8> {
         number /= 10;
     }
 
-    while digits.len() <= vector_size.into() {
+    while digits.len() < vector_size.into() {
         digits.push(0);
     }
 
