@@ -44,12 +44,12 @@ pub fn make_raw_midi_mesg(stamp: &u64, mesg: &Vec<u8>) -> Result<RawMidi, String
     let raw_midi_mesg: Result<RawMidi, String> = match RawMidi::new(*stamp, mesg) {
         Ok(raw_midi) => Ok(raw_midi),
         Err(err) => {
-            log::error!(
-                "Unable to make RawMidi from data : {:?} (err: {})",
-                mesg,
-                err
-            );
-            Err("Unable to make RawMidi from data !".to_string())
+            //log::error!(
+            //    "Unable to make RawMidi from data : {:?} (err: {})",
+            //    mesg,
+            //    err
+            //);
+            Err("Unable to make RawMidi from data : ".to_string() + &err.to_string())
         }
     };
 
@@ -60,19 +60,24 @@ fn make_raw_midi_mesg_fast(stamp: &u64, mesg: &Vec<u8>) -> Result<RawMidi, Strin
     let raw_midi_mesg: Result<RawMidi, String> = match RawMidi::new(*stamp, mesg) {
         Ok(raw_midi) => Ok(raw_midi),
         Err(err) => {
-            log::error!(
-                "Unable to make RawMidi from data : {:?} (err: {})",
-                mesg,
-                err
-            );
-            Err("Unable to make RawMidi from data !".to_string())
+            //log::error!(
+            //    "Unable to make RawMidi from data : {:?} (err: {})",
+            //    mesg,
+            //    err
+            //);
+            Err("Unable to make RawMidi from data : ".to_string() + &err.to_string())
         }
     };
 
     raw_midi_mesg
 }
 
-fn make_sysex_mesg(time: u64, lcd_num: u8, line_num: u8, mesg: String) -> Result<RawMidi, String> {
+pub fn make_lcd_mesg(
+    time: u64,
+    lcd_num: u8,
+    line_num: u8,
+    mesg: String,
+) -> Result<RawMidi, String> {
     // SYSEX MATRIX POS
     // 00 38
     // 07 3F
@@ -83,8 +88,8 @@ fn make_sysex_mesg(time: u64, lcd_num: u8, line_num: u8, mesg: String) -> Result
     // 2A 62
     // 31 69
 
-    assert!((1..8).contains(&lcd_num));
-    assert!((1..2).contains(&line_num));
+    assert!((1..=9).contains(&lcd_num));
+    assert!((1..=2).contains(&line_num));
 
     let position: u8 = ((lcd_num - 1) + ((line_num - 1) * 8)) * 7;
 
@@ -100,9 +105,96 @@ fn make_sysex_mesg(time: u64, lcd_num: u8, line_num: u8, mesg: String) -> Result
 
     midi_data.push(0xF7);
 
-    let raw_midi_mesg = make_raw_midi_mesg_fast(&time, &midi_data).unwrap();
+    make_raw_midi_mesg(&time, &midi_data)
+}
 
-    Ok(raw_midi_mesg)
+pub fn gen_lcd_string(stamp: u64, mesg: Option<String>) -> Result<Vec<RawMidi>, String> {
+    let mut raw_midi_mesg: Vec<RawMidi> = Vec::new();
+
+    fn line_append(
+        vec: &mut Vec<RawMidi>,
+        stamp: &u64,
+        line: &[u8],
+        line_pos: u8,
+    ) -> Result<(), String> {
+        let chunk_size = 7;
+        let line_len = if line.len() <= 110 { line.len() } else { 110 };
+
+        let loop_iter = if line_len / chunk_size <= 8 {
+            line_len / chunk_size
+        } else {
+            8
+        };
+
+        let loop_rem = line_len % chunk_size;
+
+        for idx in 0..=loop_iter {
+            let min = idx * chunk_size;
+            let mut max = min + loop_rem;
+
+            if idx != loop_iter {
+                max = min + chunk_size;
+            }
+
+            match String::from_utf8(line[min..max].to_vec()) {
+                Ok(str) => {
+                    match make_lcd_mesg(*stamp, (idx as u8) + 1, line_pos, str) {
+                        Ok(raw_midi) => vec.push(raw_midi),
+                        Err(err) => return Err(err),
+                    };
+                }
+                Err(err) => return Err(err.to_string()),
+            }
+        }
+        Ok(())
+    }
+
+    match mesg {
+        Some(mesg) => {
+            let mesg_str = mesg.as_bytes();
+            let mesg_len = mesg_str.len();
+
+            if mesg_len > 55 {
+                match mesg_str.split_at_checked(56) {
+                    Some((line1, line2)) => {
+                        match line_append(&mut raw_midi_mesg, &stamp, line1, 1) {
+                            Ok(()) => (),
+                            Err(err) => return Err(err),
+                        }
+
+                        match line_append(&mut raw_midi_mesg, &stamp, line2, 2) {
+                            Ok(()) => (),
+                            Err(err) => return Err(err),
+                        }
+                    }
+                    None => return Err("Unable to slice the string in two :(".to_string()),
+                };
+            } else if mesg_len <= 55 {
+                match line_append(&mut raw_midi_mesg, &stamp, mesg_str, 1) {
+                    Ok(()) => (),
+                    Err(err) => return Err(err),
+                }
+            } else {
+                return Err("Error when evaluated String length… ".to_string());
+            };
+
+            Ok(raw_midi_mesg)
+        }
+        None => {
+            let empty_str = [0x10; 112];
+
+            match line_append(&mut raw_midi_mesg, &stamp, &empty_str[0..=55], 1) {
+                Ok(()) => (),
+                Err(err) => return Err(err),
+            }
+
+            match line_append(&mut raw_midi_mesg, &stamp, &empty_str[56..112], 2) {
+                Ok(()) => (),
+                Err(err) => return Err(err),
+            }
+            Ok(raw_midi_mesg)
+        }
+    }
 }
 
 pub fn send_midi_mesg(mesg: &[RawMidi]) -> bool {
@@ -145,12 +237,74 @@ pub fn timestamp_gen(
     Ok(raw_midi_timestamp)
 }
 
-pub fn assign_gen(assign: u8) -> Result<RawMidi, String> {
-    todo!()
+pub fn assign_gen(assign: usize) -> Result<Vec<RawMidi>, String> {
+    let split_assign = split_digits(&assign, 2);
+    let mut raw_midi_mesg: Vec<RawMidi> = Vec::new();
+
+    match make_raw_midi_mesg(&0, &vec![0xB0, 0x4A, split_assign[0] + 0x30]) {
+        Ok(raw_midi) => raw_midi_mesg.push(raw_midi),
+        Err(err) => {
+            return Err(
+                "Unable to generate assign digit midi mesg : ".to_string() + &err.to_string()
+            )
+        }
+    }
+
+    match make_raw_midi_mesg(&0, &vec![0xB0, 0x4B, split_assign[1] + 0x30]) {
+        Ok(raw_midi) => raw_midi_mesg.push(raw_midi),
+        Err(err) => return Err(err.to_string()),
+    }
+
+    Ok(raw_midi_mesg)
 }
 
-pub fn reset_mc_device() -> Result<Vec<RawMidi>, String> {
-    todo!()
+pub fn pan_knob_gen(mode: u8, knob_num: u8, knob_value: u8) -> Result<RawMidi, String> {
+    let cmd = 0xB0;
+    let midi_knob_num = if knob_num < 9 {
+        0x30 + (knob_num - 1)
+    } else {
+        return Err("Knob number superior to 8 !".to_string());
+    };
+    if knob_value > 0x0B {
+        return Err("Knob value must be inferior or equal to 11 (0x0B)".to_string());
+    }
+    if mode > 0x03 {
+        return Err("Knob mode must be inferior or equel to 3 (0x03)".to_string());
+    }
+
+    let clamped_value = if mode == 0x03 && knob_value > 0x06 {
+        0x06
+    } else {
+        knob_value
+    };
+
+    let midi_knob_value = (mode << 4) | clamped_value;
+
+    make_raw_midi_mesg(&0, &vec![cmd, midi_knob_num, midi_knob_value])
+}
+
+pub fn meter_led(meter_num: u8, sound_value: u8) -> Result<RawMidi, String> {
+    //0xsC 	(0 dB) 	Red (clip)
+    //0xsB 	(>= -2 dB) 	Yellow
+    //0xsA 	(>= -4 dB) 	Yellow
+    //0xs9 	(>= -6 dB) 	Yellow
+    //0xs8 	(>= -8 dB) 	Green
+    //0xs7 	(>= -10 dB) 	Green
+    //0xs6 	(>= -14 dB) 	Green
+    //0xs5 	(>= -20 dB) 	Green
+    //0xs4 	(>= -30 dB) 	Green
+    //0xs3 	(>= -40 dB) 	Green
+    //0xs2 	(>= -50 dB) 	Green
+    //0xs1 	(>= -60 dB) 	Green
+    //0xs0 	0 % (< -60 dB) 	All LEDs Off
+
+    let midi_sound_value = match sound_value {
+        _ => 0,
+    };
+
+    let midi_meter_value = (meter_num << 4) | midi_sound_value;
+
+    make_raw_midi_mesg(&0, &vec![0xD0, midi_meter_value])
 }
 
 pub fn initialize_mc_device() -> Result<Vec<RawMidi>, String> {
@@ -160,12 +314,6 @@ pub fn initialize_mc_device() -> Result<Vec<RawMidi>, String> {
     let pitch_bend_prefix = 0xE0;
 
     let time: u64 = 0;
-
-    //let sysx_mesg = [0xF0, 0x00, 0x00, 0x66, 0x14, 0x12, 0x00, 0x41, 0x78, 0x65, 0x6C, 0xF7, 0, 0, 0, 0];
-    //let sysx_mesg_2 = [0xF0, 0x00, 0x00, 0x66, 0x14, 0x12, 0x07, 0x41, 0x78, 0x65, 0x6C, 0xF7, 0, 0, 0, 0];
-
-    //raw_midi_mesg.push(make_raw_midi_mesg_fast(time,sysx_mesg).unwrap());
-    //raw_midi_mesg.push(make_raw_midi_mesg_fast(time,sysx_mesg_2).unwrap());
 
     let mut midi_mesg: Vec<u8> = Vec::with_capacity(MAX_MIDI_MSG_SIZE);
 
@@ -185,32 +333,17 @@ pub fn initialize_mc_device() -> Result<Vec<RawMidi>, String> {
             }
             Err(..) => {
                 log::error!("Unable to trigger event abort");
-                //Err("Unable to initialize mc device !".to_string())
             }
         };
 
         midi_mesg.clear();
-
-        //time += 100;
     }
 
-    for pan_idx in 0..9 {
-        midi_mesg.push(0xB0);
-        midi_mesg.push(0x30 + pan_idx);
-        midi_mesg.push(0x0D);
-
-        match make_raw_midi_mesg_fast(&time, &midi_mesg) {
-            Ok(raw_midi) => {
-                log::info!("Initializing pan LED #{}", pan_idx);
-                raw_midi_mesg.push(raw_midi);
-            }
-            Err(..) => {
-                log::error!("Unable to trigger event abort");
-                //Err("Unable to initialize mc device !".to_string())
-            }
-        };
-
-        midi_mesg.clear();
+    for pan_idx in 1..9 {
+        match pan_knob_gen(3, pan_idx, 0x06) {
+            Ok(raw_midi) => raw_midi_mesg.push(raw_midi),
+            Err(err) => println!("Unable to create Pan Knob midi message : {}", err),
+        }
     }
 
     match timestamp_gen(1, 45, 30, 250) {
@@ -222,10 +355,30 @@ pub fn initialize_mc_device() -> Result<Vec<RawMidi>, String> {
         Err(err) => println!("Unable to generate timestamp : {}", err),
     }
 
-    log::info!("Initilizing LCD display #1");
-    raw_midi_mesg.push(make_sysex_mesg(time + 1000, 1, 1, "TEST".to_string()).unwrap());
-    log::info!("Initilizing LCD display #1");
-    raw_midi_mesg.push(make_sysex_mesg(time + 1000, 2, 1, ":)".to_string()).unwrap());
+    // Default assignment digit
+    match assign_gen(55) {
+        Ok(vec_raw_midi) => {
+            for raw_midi in vec_raw_midi {
+                raw_midi_mesg.push(raw_midi);
+            }
+        }
+        Err(err) => println!("Unable to generate assign digit : {}", err),
+    }
+
+    let test_mesg = "She bath'd with roses red, and violets blue, And all the sweetest flowres, that in the forrest grew.".to_string();
+
+    match gen_lcd_string(time, Some(test_mesg)) {
+        Ok(vec_raw_midi) => {
+            for raw_midi in vec_raw_midi {
+                raw_midi_mesg.push(raw_midi);
+            }
+        }
+        Err(err) => println!("Unable to generate lcd string : {}", err),
+    }
 
     Ok(raw_midi_mesg)
+}
+
+pub fn reset_mc_device() -> Result<Vec<RawMidi>, String> {
+    todo!()
 }
