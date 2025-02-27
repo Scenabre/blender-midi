@@ -1,4 +1,5 @@
 pub mod container;
+pub mod math_utils;
 pub mod midi_event;
 pub mod midi_main;
 pub mod midi_process_mesg;
