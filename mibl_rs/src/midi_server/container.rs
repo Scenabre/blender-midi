@@ -196,7 +196,7 @@ impl std::fmt::Debug for Event {
         write!(
             f,
             "Midi Event #{} {} : \n Wait for : {:?}, Send : {{ {:?} {:?} }} following rule : {} by amount : {}{:?}",
-            self.index,
+            self.index+1,
             self.name,
             self.mesg_in,
             self.cmd_out,
