@@ -96,7 +96,10 @@ pub fn craft_recipe(
                             "Fader Touched #".to_string()
                                 + &((custom_event[1] - 0x07) ^ 0x60).to_string(),
                         ),
-                        _ => None,
+                        _ => {
+                            println!("Unable to generate name for event : {:X?}", custom_event[1]);
+                            None
+                        }
                     };
 
                     if name.is_some() {
@@ -137,14 +140,14 @@ pub fn craft_recipe(
                                 break;
                             }
                         };
-                    }
+                    };
                     None
                 }
                 _ => None,
             };
             match event {
                 Some(ev) => events.push(ev),
-                None => println!("Event not added into queue"),
+                None => println!("Event not added into queue… {:X?}", custom_event),
             }
 
             event_idx += 1;
@@ -164,10 +167,10 @@ pub fn craft_recipe(
         // PB # by channel : 00E0->00E8
         // PB On/Off : 0068->0070
 
-        println!("Sys events build :");
-        for (idx, event) in events.iter().enumerate() {
-            println!("Event #{} : {:?}", idx, event);
-        }
+        //println!("Sys events build :");
+        //for (idx, event) in events.iter().enumerate() {
+        //    println!("---- \n Event #{} \n {:?} \n ----", idx, event);
+        //}
     } else {
         println!("No custom events ;)");
     }
