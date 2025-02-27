@@ -29,119 +29,141 @@ pub fn craft_recipe(
 
     if *use_sys {
         for (idx, (value, name)) in SYS_EVENT_ARRAY.iter().enumerate() {
-            if *value != 0x3C {
-                let event = Event::new(
-                    event_idx as u8,
+            let event = match *value {
+                0x3C => Event::new(
+                    event_idx,
+                    name.to_string(),
+                    vec![],
+                    Some(0xB0),
+                    vec![].into(),
+                    0,
+                    None,
+                ),
+                0x71..=0x73 => Event::new(
+                    event_idx,
+                    name.to_string(),
+                    vec![],
+                    Some(0x90),
+                    vec![].into(),
+                    0,
+                    None,
+                ),
+                _ => Event::new(
+                    event_idx,
                     name.to_string(),
                     vec![0x90, *value, 0x7F],
                     Some(0x80),
                     vec![*value, 0x40].into(),
                     0,
                     None,
-                );
-                match event {
-                    Ok(ev) => events.push(ev),
-                    Err(err) => panic!("{}", err),
-                }
-                event_idx = idx as u8
+                ),
+            };
+            match event {
+                Ok(ev) => events.push(ev),
+                Err(err) => panic!("{}", err),
             }
+            event_idx = idx as u8
         }
     }
 
-    match custom_events {
-        Some(custom_events) => {
-            for custom_event in custom_events {
-                match custom_event[0] {
-                    0x90 => {
-                        let name: Option<String> = match custom_event[1] {
-                            0x00..=0x07 => Some(
-                                "Rec track button #".to_string() + &custom_event[1].to_string(),
-                            ),
-                            0x08..=0x0F => Some(
-                                "Solo track button #".to_string()
-                                    + &(custom_event[1] - 0x07).to_string(),
-                            ),
-                            0x10..=0x17 => Some(
-                                "Mute track button #".to_string()
-                                    + &(custom_event[1] ^ 0x10).to_string(),
-                            ),
-
-                            0x18..=0x1F => Some(
-                                "Select track button #".to_string()
-                                    + &((custom_event[1] ^ 0x10) - 0x07).to_string(),
-                            ),
-                            0x20..=0x27 => Some(
-                                "Pan click track button #".to_string()
-                                    + &(custom_event[1] ^ 0x20).to_string(),
-                            ),
-                            0x32 => Some("Main track flip button".to_string()),
-                            _ => None,
-                        };
-
-                        if name.is_some() {
-                            let event = Event::new(
-                                event_idx,
-                                name.unwrap(),
-                                vec![0x90, custom_event[1], 0x7F],
-                                Some(0x80),
-                                vec![custom_event[1], 0x40].into(),
-                                0,
-                                None,
-                            );
-
-                            match event {
-                                Ok(ev) => events.push(ev),
-                                Err(err) => panic!("{}", err),
-                            }
-
-                            event_idx += 1;
+    if let Some(custom_events) = custom_events {
+        for custom_event in custom_events {
+            match custom_event[0] {
+                0x90 => {
+                    let name: Option<String> = match custom_event[1] {
+                        0x00..=0x07 => {
+                            Some("Rec track button #".to_string() + &custom_event[1].to_string())
                         }
-                    }
-                    0xB0 => {
-                        let name = (custom_event[1] ^ 0x10).to_string();
+                        0x08..=0x0F => Some(
+                            "Solo track button #".to_string()
+                                + &(custom_event[1] - 0x07).to_string(),
+                        ),
+                        0x10..=0x17 => Some(
+                            "Mute track button #".to_string()
+                                + &(custom_event[1] ^ 0x10).to_string(),
+                        ),
 
-                        if custom_event[2] == 0x01 || custom_event[2] == 0x41 {
-                            let event = Event::new(
-                                event_idx,
-                                name,
-                                vec![0xB0, custom_event[1], custom_event[2]],
-                                Some(0xB0),
-                                vec![0xB0, custom_event[1], custom_event[2]].into(),
-                                0,
-                                None,
-                            );
+                        0x18..=0x1F => Some(
+                            "Select track button #".to_string()
+                                + &((custom_event[1] ^ 0x10) - 0x07).to_string(),
+                        ),
+                        0x20..=0x27 => Some(
+                            "Pan click track button #".to_string()
+                                + &(custom_event[1] ^ 0x20).to_string(),
+                        ),
+                        0x32 => Some("Main track flip button".to_string()),
+                        0x68..=0x70 => Some(
+                            "Fader Touched #".to_string()
+                                + &((custom_event[1] - 0x07) ^ 0x60).to_string(),
+                        ),
+                        _ => None,
+                    };
 
-                            match event {
-                                Ok(ev) => events.push(ev),
-                                Err(err) => panic!("{}", err),
-                            }
+                    if name.is_some() {
+                        let event = Event::new(
+                            event_idx,
+                            name.unwrap(),
+                            vec![0x90, custom_event[1], 0x7F],
+                            Some(0x80),
+                            vec![custom_event[1], 0x40].into(),
+                            0,
+                            None,
+                        );
 
-                            event_idx += 1;
+                        match event {
+                            Ok(ev) => events.push(ev),
+                            Err(err) => panic!("{}", err),
                         }
+
+                        event_idx += 1;
                     }
-                    _ => (),
                 }
-            }
+                0xB0 => {
+                    let name = (custom_event[1] ^ 0x10).to_string();
 
-            // Fader Ctrl :
-            // Pan Click : 0020 -> 0027
-            // Pan CCW|CW CC : 0010 -> 0017  0041|0001
-            // Rec : 0000 -> 0007
-            // Solo : 0008 -> 000F
-            // Mute : 0010 -> 0017
-            // Select : 0018 -> 001F
-            // Main Flip : 0032
+                    if custom_event[2] == 0x01 || custom_event[2] == 0x41 {
+                        let event = Event::new(
+                            event_idx,
+                            name,
+                            vec![0xB0, custom_event[1], custom_event[2]],
+                            Some(0xB0),
+                            vec![0xB0, custom_event[1], custom_event[2]].into(),
+                            0,
+                            None,
+                        );
 
-            // Pitch Bend (Fader)
-            // PB # by channel : 00E0->00E8
-            // PB On/Off : 0068->0070
+                        match event {
+                            Ok(ev) => events.push(ev),
+                            Err(err) => panic!("{}", err),
+                        }
 
-            println!("Sys events build :");
-            for (idx, event) in events.iter().enumerate() {
-                println!("Event #{} : {:?}", idx, event);
+                        event_idx += 1;
+                    }
+                }
+                _ => (),
             }
         }
-        None => (),
+
+        // Fader Ctrl :
+        // Pan Click : 0020 -> 0027
+        // Pan CCW|CW CC : 0010 -> 0017  0041|0001
+        // Pan LED CC : 0030 -> 0037
+        // Rec : 0000 -> 0007
+        // Solo : 0008 -> 000F
+        // Mute : 0010 -> 0017
+        // Select : 0018 -> 001F
+        // Main Flip : 0032
+
+        // Pitch Bend (Fader)
+        // PB # by channel : 00E0->00E8
+        // PB On/Off : 0068->0070
+
+        println!("Sys events build :");
+        for (idx, event) in events.iter().enumerate() {
+            println!("Event #{} : {:?}", idx, event);
+        }
+    } else {
+        println!("No custom events ;)");
     }
 
     Ok(events)
@@ -174,7 +196,7 @@ pub fn trigger_midi_events(
     //
     //let triggers: Vec<&Event> = vec![&cc_60_cw_event, &cc_60_ccw_event];
 
-    let mut trigger_result: RawMidi = RawMidi::default();
+    let mut trigger_result: Option<RawMidi> = None;
 
     for trigger in triggers.iter() {
         if mesg == trigger.get_mesg_in() {
@@ -190,7 +212,7 @@ pub fn trigger_midi_events(
                 midi_mesg.extend(data)
             }
 
-            trigger_result = make_raw_midi_mesg(stamp, &midi_mesg).unwrap();
+            trigger_result = Some(make_raw_midi_mesg(stamp, &midi_mesg).unwrap());
         }
     }
 
