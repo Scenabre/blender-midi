@@ -283,7 +283,7 @@ pub fn pan_knob_gen(mode: u8, knob_num: u8, knob_value: u8) -> Result<RawMidi, S
     make_raw_midi_mesg(&0, &vec![cmd, midi_knob_num, midi_knob_value])
 }
 
-pub fn meter_led(meter_num: u8, sound_value: u8) -> Result<RawMidi, String> {
+pub fn meter_led(meter_num: u8, sound_value: i8, clip: bool) -> Result<RawMidi, String> {
     //0xsC 	(0 dB) 	Red (clip)
     //0xsB 	(>= -2 dB) 	Yellow
     //0xsA 	(>= -4 dB) 	Yellow
@@ -297,10 +297,36 @@ pub fn meter_led(meter_num: u8, sound_value: u8) -> Result<RawMidi, String> {
     //0xs2 	(>= -50 dB) 	Green
     //0xs1 	(>= -60 dB) 	Green
     //0xs0 	0 % (< -60 dB) 	All LEDs Off
+    // s [0..=7]
 
     let midi_sound_value = match sound_value {
-        _ => 0,
+        0 => 0x0C,
+        v if v > 0 => {
+            if clip {
+                0x0E
+            } else {
+                0x0D
+            }
+        }
+        v if v >= -2 => 0x0B,
+        v if v >= -4 => 0x0A,
+        v if v >= -6 => 0x09,
+        v if v >= -8 => 0x08,
+        v if v >= -10 => 0x07,
+        v if v >= -14 => 0x06,
+        v if v >= -20 => 0x05,
+        v if v >= -30 => 0x04,
+        v if v >= -40 => 0x03,
+        v if v >= -50 => 0x02,
+        v if v >= -60 => 0x01,
+        v if v < -60 => 0x00,
+        _ => 0x00,
     };
+
+    if meter_num > 7 {
+        let midi_meter_value = (7 << 4) | midi_sound_value;
+        return make_raw_midi_mesg(&0, &vec![0xD0, midi_meter_value]);
+    }
 
     let midi_meter_value = (meter_num << 4) | midi_sound_value;
 
@@ -374,6 +400,13 @@ pub fn initialize_mc_device() -> Result<Vec<RawMidi>, String> {
             }
         }
         Err(err) => println!("Unable to generate lcd string : {}", err),
+    }
+
+    for meter in 0..=7 {
+        match meter_led(meter, 0, false) {
+            Ok(raw_midi) => raw_midi_mesg.push(raw_midi),
+            Err(err) => println!("Unable to generate meter midi mesg : {}", err),
+        }
     }
 
     Ok(raw_midi_mesg)
