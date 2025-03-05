@@ -20,7 +20,7 @@ const EPSILON: f32 = 0.01;
 
 pub fn craft_recipe(
     use_sys: &bool,
-    custom_events: Option<&Vec<[u8; 3]>>,
+    custom_events: Option<&Vec<(Vec<u8>, Vec<u8>)>>,
 ) -> Result<Vec<Event>, String> {
     let mut events: Vec<Event> = Vec::new();
     let mut event_idx: u8 = 0;
@@ -32,8 +32,7 @@ pub fn craft_recipe(
                     event_idx,
                     name.to_string(),
                     vec![],
-                    Some(0xB0),
-                    vec![].into(),
+                    Some(vec![0xB0, 0, 0]),
                     0,
                     None,
                 ),
@@ -41,8 +40,7 @@ pub fn craft_recipe(
                     event_idx,
                     name.to_string(),
                     vec![],
-                    Some(0x90),
-                    vec![].into(),
+                    Some(vec![0x90, 0, 0]),
                     0,
                     None,
                 ),
@@ -50,8 +48,7 @@ pub fn craft_recipe(
                     event_idx,
                     name.to_string(),
                     vec![0x90, *value, 0x7F],
-                    Some(0x80),
-                    vec![*value, 0x40].into(),
+                    Some(vec![0x90, *value, 0x00]),
                     0,
                     None,
                 ),
@@ -65,70 +62,65 @@ pub fn craft_recipe(
     }
 
     if let Some(custom_events) = custom_events {
-        for custom_event in custom_events {
-            let event: Option<Event> = match custom_event[0] {
-                0x90 => {
-                    let name: Option<String> = match custom_event[1] {
+        for (ev_in, ev_out) in custom_events {
+            let event: Option<Event> = match ev_in[0] {
+                0x90 | 0x80 => {
+                    let name: Option<String> = match ev_in[1] {
                         0x00..=0x07 => {
-                            Some("Rec track button #".to_string() + &custom_event[1].to_string())
+                            Some("Rec track button #".to_string() + &ev_in[1].to_string())
                         }
-                        0x08..=0x0F => Some(
-                            "Solo track button #".to_string()
-                                + &(custom_event[1] - 0x07).to_string(),
-                        ),
-                        0x10..=0x17 => Some(
-                            "Mute track button #".to_string()
-                                + &(custom_event[1] ^ 0x10).to_string(),
-                        ),
+                        0x08..=0x0F => {
+                            Some("Solo track button #".to_string() + &(ev_in[1] - 0x07).to_string())
+                        }
+                        0x10..=0x17 => {
+                            Some("Mute track button #".to_string() + &(ev_in[1] ^ 0x10).to_string())
+                        }
 
                         0x18..=0x1F => Some(
                             "Select track button #".to_string()
-                                + &((custom_event[1] ^ 0x10) - 0x07).to_string(),
+                                + &((ev_in[1] ^ 0x10) - 0x07).to_string(),
                         ),
                         0x20..=0x27 => Some(
-                            "Pan click track button #".to_string()
-                                + &(custom_event[1] ^ 0x20).to_string(),
+                            "Pan click track button #".to_string() + &(ev_in[1] ^ 0x20).to_string(),
                         ),
                         0x32 => Some("Main track flip button".to_string()),
                         0x68..=0x70 => Some(
-                            "Fader Touched #".to_string()
-                                + &((custom_event[1] - 0x07) ^ 0x60).to_string(),
+                            "Fader Touched #".to_string() + &((ev_in[1] - 0x07) ^ 0x60).to_string(),
                         ),
                         _ => {
-                            println!("Unable to generate name for event : {:X?}", custom_event[1]);
+                            println!("Unable to generate name for event : {:X?}", ev_in[1]);
                             None
                         }
                     };
 
                     if name.is_some() {
-                        match Event::new(
-                            event_idx,
-                            name.unwrap(),
-                            vec![0x90, custom_event[1], 0x7F],
-                            Some(0x80),
-                            vec![custom_event[1], 0x40].into(),
-                            0,
-                            None,
-                        ) {
+                        let mut vec_in = vec![ev_in[0], ev_in[1], 0x7F];
+                        let vec_out = vec![ev_out[0], ev_out[1], 0x7F];
+
+                        if ev_in[0] == 0x80 {
+                            vec_in[2] = 0x40;
+                        }
+
+                        match Event::new(event_idx, name.unwrap(), vec_in, Some(vec_out), 0, None) {
                             Ok(ev) => Some(ev),
                             Err(err) => {
                                 println!("Unable to create custom events : {}", err);
-                                break;
+                                None
                             }
-                        };
-                    };
-                    None
+                        }
+                    } else {
+                        None
+                    }
                 }
                 0xB0 => {
-                    let name = (custom_event[1] ^ 0x10).to_string();
+                    let name = (ev_in[1] ^ 0x10).to_string();
 
-                    if custom_event[2] == 0x01 || custom_event[2] == 0x41 {
+                    if ev_in[2] == 0x01 || ev_in[2] == 0x41 {
                         match Event::new(
                             event_idx,
                             name,
-                            vec![0xB0, custom_event[1], custom_event[2]],
-                            Some(0xB0),
-                            vec![0xB0, custom_event[1], custom_event[2]].into(),
+                            ev_in.clone(),
+                            Some(ev_out.clone()),
                             0,
                             None,
                         ) {
@@ -139,13 +131,15 @@ pub fn craft_recipe(
                             }
                         };
                     };
+
                     None
                 }
                 _ => None,
             };
+
             match event {
                 Some(ev) => events.push(ev),
-                None => println!("Event not added into queue… {:X?}", custom_event),
+                None => println!("Event not added into queue… {:X?} => {:X?}", ev_in, ev_out),
             }
 
             event_idx += 1;
@@ -179,7 +173,7 @@ pub fn craft_recipe(
 pub fn trigger_midi_events(
     stamp: &u64,
     mesg: &[u8],
-    triggers: &Vec<Event>,
+    triggers: &[Event],
 ) -> Result<Option<RawMidi>, String> {
     //let cc_60_ccw_event: Event = Event {
     //    index: 0,
