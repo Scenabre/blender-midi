@@ -1,5 +1,7 @@
 use crate::midi_server::container::{RawMidi, MAX_MIDI_MSG_SIZE};
 use crate::midi_server::math_utils::split_digits;
+use crate::midi_server::sys_event::SYS_EVENT_ARRAY;
+
 //use crate::midi_process_mesg::MidiMesg;
 //
 // CHANNEL VOICE MESG
@@ -33,7 +35,7 @@ pub fn convert_value_to_lsb_msb(value: f32) -> (u8, u8) {
     }
 }
 
-pub fn make_raw_midi_mesg(stamp: &u64, mesg: &Vec<u8>) -> Result<RawMidi, String> {
+pub fn make_raw_midi_mesg(stamp: &u64, mesg: &[u8]) -> Result<RawMidi, String> {
     // Note off = NOFF
     // Note on = NON
     // Aftertouch = AT
@@ -56,7 +58,7 @@ pub fn make_raw_midi_mesg(stamp: &u64, mesg: &Vec<u8>) -> Result<RawMidi, String
     raw_midi_mesg
 }
 
-fn make_raw_midi_mesg_fast(stamp: &u64, mesg: &Vec<u8>) -> Result<RawMidi, String> {
+fn make_raw_midi_mesg_fast(stamp: &u64, mesg: &[u8]) -> Result<RawMidi, String> {
     let raw_midi_mesg: Result<RawMidi, String> = match RawMidi::new(*stamp, mesg) {
         Ok(raw_midi) => Ok(raw_midi),
         Err(err) => {
@@ -228,7 +230,7 @@ pub fn timestamp_gen(
 
     for (idx, value) in timestamp.iter().enumerate() {
         let digit = idx + 0x40;
-        match make_raw_midi_mesg(&stamp, &vec![0xB0, digit as u8, (*value + 0x30)]) {
+        match make_raw_midi_mesg(&stamp, &[0xB0, digit as u8, (*value + 0x30)]) {
             Ok(raw_midi) => raw_midi_timestamp.push(raw_midi),
             Err(err) => println!("Unable to create message for timestamp ! {}", err),
         }
@@ -241,7 +243,7 @@ pub fn assign_gen(assign: usize) -> Result<Vec<RawMidi>, String> {
     let split_assign = split_digits(&assign, 2);
     let mut raw_midi_mesg: Vec<RawMidi> = Vec::new();
 
-    match make_raw_midi_mesg(&0, &vec![0xB0, 0x4A, split_assign[0] + 0x30]) {
+    match make_raw_midi_mesg(&0, &[0xB0, 0x4A, split_assign[0] + 0x30]) {
         Ok(raw_midi) => raw_midi_mesg.push(raw_midi),
         Err(err) => {
             return Err(
@@ -250,7 +252,7 @@ pub fn assign_gen(assign: usize) -> Result<Vec<RawMidi>, String> {
         }
     }
 
-    match make_raw_midi_mesg(&0, &vec![0xB0, 0x4B, split_assign[1] + 0x30]) {
+    match make_raw_midi_mesg(&0, &[0xB0, 0x4B, split_assign[1] + 0x30]) {
         Ok(raw_midi) => raw_midi_mesg.push(raw_midi),
         Err(err) => return Err(err.to_string()),
     }
@@ -280,7 +282,7 @@ pub fn pan_knob_gen(mode: u8, knob_num: u8, knob_value: u8) -> Result<RawMidi, S
 
     let midi_knob_value = (mode << 4) | clamped_value;
 
-    make_raw_midi_mesg(&0, &vec![cmd, midi_knob_num, midi_knob_value])
+    make_raw_midi_mesg(&0, &[cmd, midi_knob_num, midi_knob_value])
 }
 
 pub fn meter_led(meter_num: u8, sound_value: i8, clip: bool) -> Result<RawMidi, String> {
@@ -325,12 +327,36 @@ pub fn meter_led(meter_num: u8, sound_value: i8, clip: bool) -> Result<RawMidi, 
 
     if meter_num > 7 {
         let midi_meter_value = (7 << 4) | midi_sound_value;
-        return make_raw_midi_mesg(&0, &vec![0xD0, midi_meter_value]);
+        return make_raw_midi_mesg(&0, &[0xD0, midi_meter_value]);
     }
 
     let midi_meter_value = (meter_num << 4) | midi_sound_value;
 
-    make_raw_midi_mesg(&0, &vec![0xD0, midi_meter_value])
+    make_raw_midi_mesg(&0, &[0xD0, midi_meter_value])
+}
+
+pub fn send_note_bang(note: u8, led_value: u8) -> Result<Vec<RawMidi>, String> {
+    let stamp = 0;
+
+    if led_value <= 127 {
+        let on_mesg = vec![0x90, note, led_value];
+        let off_mesg = vec![0x80, note, 0x40];
+        let mut raw_midi_mesg: Vec<RawMidi> = Vec::with_capacity(2);
+
+        match make_raw_midi_mesg(&stamp, &on_mesg) {
+            Ok(res) => raw_midi_mesg.push(res),
+            Err(err) => return Err(err.to_string()),
+        };
+
+        match make_raw_midi_mesg(&stamp, &off_mesg) {
+            Ok(res) => raw_midi_mesg.push(res),
+            Err(err) => return Err(err.to_string()),
+        };
+
+        return Ok(raw_midi_mesg);
+    }
+
+    Err(format!("Bad led mode {} : 0 or any even value to LED Off, 1 or any odd value to LED Blink, 127 to LED On", led_value))
 }
 
 pub fn initialize_mc_device() -> Result<Vec<RawMidi>, String> {
@@ -413,5 +439,53 @@ pub fn initialize_mc_device() -> Result<Vec<RawMidi>, String> {
 }
 
 pub fn reset_mc_device() -> Result<Vec<RawMidi>, String> {
-    todo!()
+    let pitch_bend_prefix = 0xE0;
+    let time: u64 = 0;
+    let mut raw_midi_mesg: Vec<RawMidi> = Vec::new();
+    let mut midi_mesg: Vec<u8> = Vec::with_capacity(MAX_MIDI_MSG_SIZE);
+
+    for (idx, (value, name)) in SYS_EVENT_ARRAY.iter().enumerate() {
+        if *value != 0x3C {
+            match send_note_bang(*value, 0x00) {
+                Ok(bang) => {
+                    println!("Resetting System LED #{} : {}", idx + 1, name);
+                    raw_midi_mesg.extend(bang);
+                }
+                Err(err) => return Err(err),
+            }
+        }
+    }
+
+    for pb_idx in 0..9 {
+        let pb_num = pitch_bend_prefix + pb_idx;
+
+        let (lsb, msb) = convert_value_to_lsb_msb(0.0);
+
+        midi_mesg.push(pb_num);
+        midi_mesg.push(lsb);
+        midi_mesg.push(msb);
+
+        match make_raw_midi_mesg_fast(&time, &midi_mesg) {
+            Ok(raw_midi) => {
+                log::info!("Resetting slider #{}", pb_idx);
+                raw_midi_mesg.push(raw_midi);
+            }
+            Err(..) => {
+                log::error!("Unable to trigger event abort");
+            }
+        };
+
+        midi_mesg.clear();
+    }
+
+    match timestamp_gen(0, 0, 0, 0) {
+        Ok(timestamp) => {
+            for midi_mesg in timestamp {
+                raw_midi_mesg.push(midi_mesg);
+            }
+        }
+        Err(err) => println!("Unable to generate timestamp : {}", err),
+    }
+
+    Ok(raw_midi_mesg)
 }
