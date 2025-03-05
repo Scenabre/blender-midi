@@ -1,7 +1,5 @@
 use std::u8;
 
-use rand::seq::IndexedRandom;
-
 use crate::midi_server::container::{Event, RawMidi, MAX_MIDI_MSG_SIZE};
 use crate::midi_server::midi_send_mesg::{self, convert_value_to_lsb_msb, make_raw_midi_mesg};
 use crate::midi_server::sys_event::SYS_EVENT_ARRAY;
