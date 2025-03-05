@@ -56,7 +56,7 @@ pub fn compare(a: f32, b: f32, e: f32) -> bool {
     let diff = f32::abs(a - b);
 
     if a == b {
-        return true;
+        true
     } else if a == 0.0 || b == 0.0 || (abs_a + abs_b) < BLENDER_ZMAX {
         return diff < (e * f32::MIN_POSITIVE);
     } else {
