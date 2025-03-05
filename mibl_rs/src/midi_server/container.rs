@@ -1,4 +1,14 @@
+use std::sync::mpsc::Sender;
+
 pub const MAX_MIDI_MSG_SIZE: usize = 16;
+
+pub type BorrowedChannels<'a> = (&'a Sender<(u64, Vec<u8>)>, &'a Sender<(u64, Vec<u8>)>);
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SIGflag {
+    pub reset_signal: bool,
+    pub bang_signal: bool,
+}
 
 #[derive(Clone)]
 pub struct RawMidi {
@@ -95,8 +105,7 @@ pub struct Event {
     index: u8,
     name: String,
     mesg_in: Vec<u8>,
-    cmd_out: Option<u8>,
-    value_out: Option<Vec<u8>>,
+    mesg_out: Option<Vec<u8>>,
     mod_rule: u8,            // 0 in->out, 1 in+x = out, 2 in-x = out,
     mod_amount: Option<f32>, // Increase/Descrease by
 }
@@ -106,8 +115,7 @@ impl Event {
         index: u8,
         name: String,
         mesg_in: Vec<u8>,
-        cmd_out: Option<u8>,
-        value_out: Option<Vec<u8>>,
+        mesg_out: Option<Vec<u8>>,
         mod_rule: u8,
         mod_amount: Option<f32>,
     ) -> Result<Event, String> {
@@ -116,8 +124,7 @@ impl Event {
                 index,
                 name,
                 mesg_in,
-                cmd_out,
-                value_out,
+                mesg_out,
                 mod_rule,
                 mod_amount,
             })
@@ -138,18 +145,8 @@ impl Event {
         &self.mesg_in
     }
 
-    pub fn get_mesg_data(&self) -> Option<Vec<u8>> {
-        match self.cmd_out {
-            Some(cmd) => {
-                let mut data = vec![cmd];
-                match &self.value_out {
-                    Some(value) => data.extend(value),
-                    None => (),
-                }
-                Some(data)
-            }
-            None => None,
-        }
+    pub fn get_mesg_data(&self) -> &Option<Vec<u8>> {
+        &self.mesg_out
     }
 
     pub fn get_mod_amount(&self) -> Option<f32> {
@@ -170,8 +167,7 @@ impl Default for Event {
             index: 0,
             name: "A No op Event".to_string(),
             mesg_in: Vec::new(),
-            cmd_out: None,
-            value_out: None,
+            mesg_out: None,
             mod_rule: 0,
             mod_amount: None,
         }
@@ -195,12 +191,11 @@ impl std::fmt::Debug for Event {
         };
         write!(
             f,
-            "Midi Event #{} {} : \n Wait for : {:?}, Send : {{ {:?} {:?} }} following rule : {} by amount : {}{:?}",
+            "Midi Event #{} {} : \n Wait for : {:?}, Send : {{ {:?} }} following rule : {} by amount : {}{:?}",
             self.index+1,
             self.name,
             self.mesg_in,
-            self.cmd_out,
-            self.value_out,
+            self.mesg_out,
             rule,
             amount,
             self.mod_amount,
