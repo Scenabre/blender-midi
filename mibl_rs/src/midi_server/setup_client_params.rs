@@ -2,6 +2,7 @@ use midir::{Ignore, MidiInput, MidiInputPort, MidiOutput, MidiOutputPort};
 
 use thiserror::Error;
 
+use crate::midi_server::container::SIGflag;
 use crate::midi_server::midi_process_mesg::CCflag;
 
 pub struct AudioParams {
@@ -11,18 +12,19 @@ pub struct AudioParams {
     pub midi_output: MidiOutput,
     pub midi_output_port: MidiOutputPort,
     pub cc_flag: CCflag,
+    pub signal_flags: SIGflag,
 }
 
 #[derive(Error, Debug)]
 pub enum ParamsInitError {
-    #[error("No midi device found")]
-    MidiDeviceNotFound,
+    //#[error("No midi device found")]
+    //MidiDeviceNotFound,
     #[error("No input port found")]
     InputPortNotfound,
     #[error("Unable to create MidiInput")]
     MidiInputError,
-    #[error("No output port found")]
-    OutputPortNotfound,
+    //#[error("No output port found")]
+    //OutputPortNotfound,
     #[error("Unable to create MidiOutput")]
     MidiOutputError,
 }
@@ -56,7 +58,7 @@ pub fn setup_client_params() -> SetupResult {
             for (i, p) in in_ports.iter().enumerate() {
                 let port_name = midi_in.port_name(p).unwrap();
 
-                if port_name.contains(&DEFAULT_PORT_NAME) {
+                if port_name.contains(DEFAULT_PORT_NAME) {
                     idx_found = i;
                     break;
                 };
@@ -77,7 +79,7 @@ pub fn setup_client_params() -> SetupResult {
             for (i, p) in out_ports.iter().enumerate() {
                 let port_name = midi_out.port_name(p).unwrap();
 
-                if port_name.contains(&DEFAULT_PORT_NAME) {
+                if port_name.contains(DEFAULT_PORT_NAME) {
                     idx_found = i;
                     break;
                 };
@@ -90,7 +92,7 @@ pub fn setup_client_params() -> SetupResult {
     };
 
     println!("\nOpening connection");
-    let in_port_name = midi_in.port_name(&in_port).unwrap();
+    let in_port_name = midi_in.port_name(in_port).unwrap();
 
     println!("Connection open, reading input from '{}'…", in_port_name);
 
@@ -100,7 +102,8 @@ pub fn setup_client_params() -> SetupResult {
         midi_input_port: in_port.clone(),
         midi_output: midi_out,
         midi_output_port: out_port.clone(),
-        cc_flag: CCflag::new(),
+        cc_flag: CCflag::default(),
+        signal_flags: SIGflag::default(),
     };
 
     Ok(parameters)
