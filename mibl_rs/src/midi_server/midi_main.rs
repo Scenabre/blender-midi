@@ -1,10 +1,10 @@
 use log::{error, info};
 use midir::MidiOutputConnection;
 
-use crate::midi_server::container::{Event, RawMidi};
+use crate::midi_server::container::{BorrowedChannels, Event, RawMidi, SIGflag};
 use crate::midi_server::midi_event::craft_recipe;
 use crate::midi_server::midi_process_mesg::{process_midi_mesg, CCflag};
-use crate::midi_server::midi_send_mesg::initialize_mc_device;
+use crate::midi_server::midi_send_mesg::{initialize_mc_device, reset_mc_device};
 use crate::midi_server::setup_client_params::setup_client_params;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
@@ -19,6 +19,7 @@ pub fn init_midi_audio(
 ) {
     match setup_client_params() {
         Ok(mut params) => {
+            println!("Connect to port : {}", params.port_name);
             let mut conn_out: Option<MidiOutputConnection> = match params
                 .midi_output
                 .connect(&params.midi_output_port, "bl-midi-out")
@@ -49,10 +50,15 @@ pub fn init_midi_audio(
                 sleep(Duration::from_millis(10));
             }
 
-            let triggers_events = match craft_recipe(&true, Some(&vec![[0x90, 0x18, 0x7F]])) {
+            let recipe_1: Vec<(Vec<u8>, Vec<u8>)> =
+                vec![(vec![0x80, 0x18, 0x40], vec![0x90, 0x19, 0x7F])];
+
+            let triggers_events = match craft_recipe(&true, Some(&recipe_1)) {
                 Ok(events) => events,
                 Err(err) => panic!("Unable to create the trigger table ! {}", err),
             };
+
+            println!("Triggers Events : {:?}", triggers_events);
 
             info!("Initialization done!");
 
@@ -60,13 +66,57 @@ pub fn init_midi_audio(
                 &params.midi_input_port,
                 "bl-midi-in",
                 move |stamp, message, midi_datas| {
+                    if message[0] == 0x80 && message[1] == 0x52 {
+                        if !params.signal_flags.reset_signal {
+                            params.signal_flags.reset_signal = true;
+                        }
+                    } else if params.signal_flags.reset_signal
+                        && message[0] == 0x90
+                        && message[1] == 0x52
+                    {
+                        match reset_mc_device() {
+                            Ok(to_send) => {
+                                let to_send_len = to_send.len();
+
+                                for (idx, mesg) in to_send.iter().enumerate() {
+                                    info!(
+                                        "Sending mesg {}/{} : {:04X?}",
+                                        (idx + 1),
+                                        to_send_len,
+                                        mesg.data()
+                                    );
+
+                                    let _ = conn_out.as_mut().unwrap().send(mesg.data());
+                                    sleep(Duration::from_millis(10));
+                                }
+
+                                sleep(Duration::from_millis(100));
+
+                                for (idx, mesg) in init_mesgs.iter().enumerate() {
+                                    info!(
+                                        "Sending mesg {}/{} : {:04X?}",
+                                        (idx + 1),
+                                        init_mesgs_len,
+                                        mesg.data()
+                                    );
+
+                                    let _ = conn_out.as_mut().unwrap().send(mesg.data());
+                                    sleep(Duration::from_millis(10));
+                                }
+                            }
+                            Err(err) => println!("Unable to reset device : {}", err),
+                        }
+                        params.signal_flags.reset_signal = false;
+                    } else if params.signal_flags.reset_signal {
+                        params.signal_flags.reset_signal = false;
+                    }
+
                     input_callback(
                         &stamp,
                         message,
                         &mut params.cc_flag,
                         conn_out.as_mut(),
-                        &midi_datas.0,
-                        &midi_datas.1,
+                        (&midi_datas.0, &midi_datas.1),
                         Some(&midi_datas.3),
                     );
                 },
@@ -100,12 +150,12 @@ fn input_callback(
     mesg: &[u8],
     cc_flag: &mut CCflag,
     pass_trough: Option<&mut MidiOutputConnection>,
-    tx: &Sender<(u64, Vec<u8>)>,
-    rx: &Sender<(u64, Vec<u8>)>,
+    channels: BorrowedChannels,
     triggers: Option<&Vec<Event>>,
 ) {
     let raw_midi = RawMidi::new(*stamp, mesg).unwrap();
     let mesg_channel = (raw_midi.delta_frames_clone(), raw_midi.data_clone());
+    let (rx, tx) = channels;
 
     rx.send(mesg_channel).unwrap();
 
@@ -114,7 +164,7 @@ fn input_callback(
     match midi_result {
         Ok(mesg) => match mesg.to_send {
             Some(mesg) => {
-                info!("Connection out found! Midi mesg : {:04X?}", mesg.data());
+                println!("Connection out found! Midi mesg : {:04X?}", mesg.data());
 
                 match pass_trough.unwrap().send(mesg.data()) {
                     Ok(_) => (),
@@ -123,7 +173,7 @@ fn input_callback(
                     }
                 }
             }
-            None => info!("Nothing to send, skip it…"),
+            None => println!("Nothing to send, skip it…"),
         },
         Err(err) => println!("No midi mesg output : {}", err),
     };
