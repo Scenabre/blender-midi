@@ -27,7 +27,7 @@ pub struct MidiProcess {
 
 pub type MidiResult = Result<MidiProcess, &'static str>;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct CCflag {
     cc_lsb_flag: bool,
     cc_channel: u8,
@@ -37,20 +37,30 @@ pub struct CCflag {
 }
 
 impl CCflag {
-    pub fn new() -> Self {
+    pub fn new(
+        cc_lsb_flag: bool,
+        cc_channel: u8,
+        cc_num: u8,
+        cc_msb_value: u8,
+        cc_note: u8,
+    ) -> Self {
         Self {
-            cc_lsb_flag: false,
-            cc_channel: 0,
-            cc_num: 0,
-            cc_msb_value: 0,
-            cc_note: 0,
+            cc_lsb_flag,
+            cc_channel,
+            cc_num,
+            cc_msb_value,
+            cc_note,
         }
     }
 }
 
-//impl Default for CCflag {
-//    fn default() -> Self {
-//        CCflag::
+//impl SIGflag {
+//    pub fn new(reset_signal: bool, bang_signal: bool) -> Self {
+//        Self {
+//            reset_signal,
+//            trigger_reset_device,
+//            bang_signal,
+//        }
 //    }
 //}
 
