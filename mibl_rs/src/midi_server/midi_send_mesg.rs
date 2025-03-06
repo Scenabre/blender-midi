@@ -199,11 +199,6 @@ pub fn gen_lcd_string(stamp: u64, mesg: Option<String>) -> Result<Vec<RawMidi>, 
     }
 }
 
-pub fn send_midi_mesg(mesg: &[RawMidi]) -> bool {
-    println!("Empty fn");
-    false
-}
-
 pub fn timestamp_gen(
     hours: usize,
     minutes: usize,
@@ -485,6 +480,31 @@ pub fn reset_mc_device() -> Result<Vec<RawMidi>, String> {
             }
         }
         Err(err) => println!("Unable to generate timestamp : {}", err),
+    }
+
+    match assign_gen(0) {
+        Ok(vec_raw_midi) => {
+            for raw_midi in vec_raw_midi {
+                raw_midi_mesg.push(raw_midi);
+            }
+        }
+        Err(err) => println!("Unable to generate assign digit : {}", err),
+    }
+
+    match gen_lcd_string(0, None) {
+        Ok(lcd) => {
+            for midi_mesg in lcd {
+                raw_midi_mesg.push(midi_mesg);
+            }
+        }
+        Err(err) => println!("Unable to generate flush lcd mesg : {}", err),
+    }
+
+    for pan_idx in 1..9 {
+        match pan_knob_gen(0, pan_idx, 0x01) {
+            Ok(raw_midi) => raw_midi_mesg.push(raw_midi),
+            Err(err) => println!("Unable to create Pan Knob midi message : {}", err),
+        }
     }
 
     Ok(raw_midi_mesg)
