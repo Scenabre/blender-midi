@@ -22,7 +22,7 @@ impl MidiMesg {
 #[derive(Debug)]
 pub struct MidiProcess {
     pub result: MidiMesg,
-    pub to_send: Option<RawMidi>,
+    pub to_send: Option<Vec<RawMidi>>,
 }
 
 pub type MidiResult = Result<MidiProcess, &'static str>;
@@ -263,7 +263,7 @@ pub fn process_midi_mesg(
         return Err("User press PANIC on midi device !");
     }
 
-    let midi_mesg_to_send: Option<RawMidi> = match triggers {
+    let midi_mesg_to_send: Option<Vec<RawMidi>> = match triggers {
         Some(triggers) => match trigger_midi_events(event.delta_frames(), event_data, triggers) {
             Ok(raw_midi) => raw_midi,
             Err(err) => {
