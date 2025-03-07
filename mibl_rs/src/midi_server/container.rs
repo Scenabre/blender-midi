@@ -3,6 +3,8 @@ use std::sync::mpsc::Sender;
 pub const MAX_MIDI_MSG_SIZE: usize = 16;
 
 pub type BorrowedChannels<'a> = (&'a Sender<(u64, Vec<u8>)>, &'a Sender<(u64, Vec<u8>)>);
+pub type WaitingQueue = Vec<(u64, Vec<RawMidi>, bool)>;
+pub type Recipe = Vec<(Vec<u8>, Vec<Vec<u8>>)>;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SIGflag {
@@ -105,7 +107,7 @@ pub struct Event {
     index: u8,
     name: String,
     mesg_in: Vec<u8>,
-    mesg_out: Option<Vec<u8>>,
+    mesg_out: Option<Vec<Vec<u8>>>,
     mod_rule: u8,            // 0 in->out, 1 in+x = out, 2 in-x = out,
     mod_amount: Option<f32>, // Increase/Descrease by
 }
@@ -115,7 +117,7 @@ impl Event {
         index: u8,
         name: String,
         mesg_in: Vec<u8>,
-        mesg_out: Option<Vec<u8>>,
+        mesg_out: Option<Vec<Vec<u8>>>,
         mod_rule: u8,
         mod_amount: Option<f32>,
     ) -> Result<Event, String> {
@@ -145,7 +147,7 @@ impl Event {
         &self.mesg_in
     }
 
-    pub fn get_mesg_data(&self) -> &Option<Vec<u8>> {
+    pub fn get_mesg_data(&self) -> &Option<Vec<Vec<u8>>> {
         &self.mesg_out
     }
 
