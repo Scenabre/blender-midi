@@ -1,7 +1,7 @@
 use std::u8;
 
-use crate::midi_server::container::{Event, RawMidi, MAX_MIDI_MSG_SIZE};
-use crate::midi_server::midi_send_mesg::{self, convert_value_to_lsb_msb, make_raw_midi_mesg};
+use crate::midi_server::container::{Event, RawMidi, Recipe, MAX_MIDI_MSG_SIZE};
+use crate::midi_server::midi_send_mesg::make_raw_midi_mesg;
 use crate::midi_server::sys_event::SYS_EVENT_ARRAY;
 
 const SIZE: usize = 16;
@@ -18,10 +18,7 @@ const EPSILON: f32 = 0.01;
 // 0xE0      Pitch bend  2              lsb (7 bits) msb (7 bits)
 // 0xF0     (non-musical commands)
 
-pub fn craft_recipe(
-    use_sys: &bool,
-    custom_events: Option<&Vec<(Vec<u8>, Vec<u8>)>>,
-) -> Result<Vec<Event>, String> {
+pub fn craft_recipe(use_sys: &bool, custom_events: &Option<Recipe>) -> Result<Vec<Event>, String> {
     let mut events: Vec<Event> = Vec::new();
     let mut event_idx: u8 = 0;
 
@@ -32,7 +29,7 @@ pub fn craft_recipe(
                     event_idx,
                     name.to_string(),
                     vec![],
-                    Some(vec![0xB0, 0, 0]),
+                    Some(vec![vec![0xB0, 0, 0]]),
                     0,
                     None,
                 ),
@@ -40,7 +37,7 @@ pub fn craft_recipe(
                     event_idx,
                     name.to_string(),
                     vec![],
-                    Some(vec![0x90, 0, 0]),
+                    Some(vec![vec![0x90, 0, 0]]),
                     0,
                     None,
                 ),
@@ -48,7 +45,7 @@ pub fn craft_recipe(
                     event_idx,
                     name.to_string(),
                     vec![0x90, *value, 0x7F],
-                    Some(vec![0x90, *value, 0x00]),
+                    Some(vec![vec![0x90, *value, 0x00]]),
                     0,
                     None,
                 ),
@@ -62,7 +59,7 @@ pub fn craft_recipe(
     }
 
     if let Some(custom_events) = custom_events {
-        for (ev_in, ev_out) in custom_events {
+        for (ev_in, evs_out) in custom_events {
             let event: Option<Event> = match ev_in[0] {
                 0x90 | 0x80 => {
                     let name: Option<String> = match ev_in[1] {
@@ -95,7 +92,11 @@ pub fn craft_recipe(
 
                     if name.is_some() {
                         let mut vec_in = vec![ev_in[0], ev_in[1], 0x7F];
-                        let vec_out = vec![ev_out[0], ev_out[1], 0x7F];
+                        let mut vec_out: Vec<Vec<u8>> = vec![];
+
+                        for ev_out in evs_out {
+                            vec_out.push(ev_out.to_vec());
+                        }
 
                         if ev_in[0] == 0x80 {
                             vec_in[2] = 0x40;
@@ -120,7 +121,7 @@ pub fn craft_recipe(
                             event_idx,
                             name,
                             ev_in.clone(),
-                            Some(ev_out.clone()),
+                            Some(evs_out.to_vec()),
                             0,
                             None,
                         ) {
@@ -139,7 +140,7 @@ pub fn craft_recipe(
 
             match event {
                 Some(ev) => events.push(ev),
-                None => println!("Event not added into queue… {:X?} => {:X?}", ev_in, ev_out),
+                None => println!("Event not added into queue… {:X?} => {:X?}", ev_in, evs_out),
             }
 
             event_idx += 1;
@@ -174,7 +175,7 @@ pub fn trigger_midi_events(
     stamp: &u64,
     mesg: &[u8],
     triggers: &[Event],
-) -> Result<Option<RawMidi>, String> {
+) -> Result<Option<Vec<RawMidi>>, String> {
     //let cc_60_ccw_event: Event = Event {
     //    index: 0,
     //    name: "CC #60 CCW → PB #1".to_string(),
@@ -197,7 +198,7 @@ pub fn trigger_midi_events(
     //
     //let triggers: Vec<&Event> = vec![&cc_60_cw_event, &cc_60_ccw_event];
 
-    let mut trigger_result: Option<RawMidi> = None;
+    let mut trigger_result: Option<Vec<RawMidi>> = None;
 
     for trigger in triggers.iter() {
         if mesg == trigger.get_mesg_in() {
@@ -207,22 +208,17 @@ pub fn trigger_midi_events(
                 trigger.get_name()
             );
 
-            let mut midi_mesg = Vec::<u8>::with_capacity(MAX_MIDI_MSG_SIZE);
+            let mut midi_mesg = Vec::<RawMidi>::with_capacity(MAX_MIDI_MSG_SIZE);
 
             if let Some(data) = trigger.get_mesg_data() {
-                midi_mesg.extend(data)
+                for mesg in data {
+                    midi_mesg.push(make_raw_midi_mesg(stamp, &mesg).unwrap());
+                }
             }
 
-            trigger_result = Some(make_raw_midi_mesg(stamp, &midi_mesg).unwrap());
+            trigger_result = Some(midi_mesg);
         }
     }
-
-    //let value_cmp = cc_60_cw_event.mesg_in.value;
-
-    //if mesg.name == cc_60_cw_event.mesg_in.name && value_cmp-EPSILON < mesg.value && mesg.value < value_cmp+EPSILON {
-    //    println!("Event trigger :)");
-    //make_raw_midi_mesg()
-    //}
 
     Ok(trigger_result)
 }
