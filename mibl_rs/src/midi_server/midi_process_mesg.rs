@@ -1,6 +1,6 @@
 use crate::midi_server::container::{Event, RawMidi};
 use crate::midi_server::midi_event::trigger_midi_events;
-//use rainout::{ProcessInfo, RawMidi};
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone)]
 pub struct MidiMesg {
@@ -94,8 +94,8 @@ pub fn process_midi_mesg(
         "HUI" => 0,
         "MC" | "Mackie Control" | "MackieControl" => 1,
         _ => {
-            log::warn!("Protocole unknown drop to HUI");
-            0
+            log::warn!("Protocole unknown drop to MC");
+            1
         }
     };
 
