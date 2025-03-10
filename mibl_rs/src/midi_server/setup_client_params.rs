@@ -1,9 +1,7 @@
 use midir::{Ignore, MidiInput, MidiInputPort, MidiOutput, MidiOutputPort};
 
+use std::sync::{Arc, Mutex};
 use thiserror::Error;
-
-use crate::midi_server::container::SIGflag;
-use crate::midi_server::midi_process_mesg::CCflag;
 
 pub struct AudioParams {
     pub port_name: String,
@@ -11,8 +9,6 @@ pub struct AudioParams {
     pub midi_input_port: MidiInputPort,
     pub midi_output: MidiOutput,
     pub midi_output_port: MidiOutputPort,
-    pub cc_flag: CCflag,
-    pub signal_flags: SIGflag,
 }
 
 #[derive(Error, Debug)]
@@ -102,8 +98,6 @@ pub fn setup_client_params() -> SetupResult {
         midi_input_port: in_port.clone(),
         midi_output: midi_out,
         midi_output_port: out_port.clone(),
-        cc_flag: CCflag::default(),
-        signal_flags: SIGflag::default(),
     };
 
     Ok(parameters)
