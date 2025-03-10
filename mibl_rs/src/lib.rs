@@ -1,4 +1,4 @@
-use crate::midi_server::container::{RawMidi, MAX_MIDI_MSG_SIZE};
+use crate::midi_server::container::{RawMidi, Recipe, MAX_MIDI_MSG_SIZE};
 use crate::midi_server::midi_main::init_midi_audio;
 use midi_server::container::Event;
 use pyo3::prelude::*;
@@ -21,6 +21,7 @@ struct MiBlRustProcessInner {
     use_sysevent: bool,
     sysevent: Event,
     signals: Vec<String>,
+    recipes: Recipe,
 }
 
 impl MiBlRustProcessInner {
@@ -34,6 +35,7 @@ impl MiBlRustProcessInner {
             use_sysevent: true,
             sysevent: Event::default(),
             signals: Vec::new(),
+            recipes: Recipe::new(),
         }
     }
 }
@@ -127,7 +129,8 @@ fn mi_start_server(mibl: &MiBlRustProcess) {
     let (tx_channel_tx, rx_channel_tx) = channel::<(u64, Vec<u8>)>();
     let (tx_signal, rx_signal) = channel::<bool>();
     let int_signal = Arc::new(Mutex::new(false));
-    let mut int_signal_arc = Arc::clone(&int_signal);
+    let int_signal_arc = Arc::clone(&int_signal);
+    let recipes_arc = Arc::new(Mutex::new(Recipe::new()));
 
     let mut last_stamp = 0;
 
@@ -136,7 +139,13 @@ fn mi_start_server(mibl: &MiBlRustProcess) {
         let sender_tx = tx_channel_tx.clone();
         let sender_signal = tx_signal.clone();
 
-        init_midi_audio(sender_tx, sender_rx, sender_signal, &mut int_signal_arc);
+        init_midi_audio(
+            sender_tx,
+            sender_rx,
+            sender_signal,
+            int_signal_arc,
+            recipes_arc,
+        );
     });
 
     loop {
