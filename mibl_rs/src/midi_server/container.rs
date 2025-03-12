@@ -1,10 +1,10 @@
-use std::sync::mpsc::Sender;
-
 pub const MAX_MIDI_MSG_SIZE: usize = 16;
 
-pub type BorrowedChannels<'a> = (&'a Sender<(u64, Vec<u8>)>, &'a Sender<(u64, Vec<u8>)>);
-pub type WaitingQueue = Vec<(u64, Vec<RawMidi>, bool)>;
-pub type Recipe = Vec<(Vec<u8>, Vec<Vec<u8>>)>;
+pub type Ingredient = (Vec<u8>, Vec<Vec<u8>>, Option<f32>);
+pub type Recipe = Vec<Ingredient>;
+pub type ExtTrigger = (u64, f32);
+pub type WaitData = (u64, Vec<Vec<u8>>);
+pub type TriggerResult = (Option<Vec<RawMidi>>, Option<Vec<ExtTrigger>>);
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SIGflag {
@@ -51,33 +51,33 @@ impl RawMidi {
         &self.delta_frames
     }
 
-    ///Clone data
-    pub fn data_clone(&self) -> Vec<u8> {
-        self.data.clone()
-    }
-
-    ///Clone delta_frames
-    pub fn delta_frames_clone(&self) -> u64 {
-        self.delta_frames.clone()
-    }
-
-    /// The size of this MIDI message in bytes.
-    pub fn len(&self) -> usize {
-        usize::from(self.len)
-    }
-
-    /// Setter
-    pub fn set(&mut self, delta_frames: u64, data: &[u8]) -> Result<(), usize> {
-        if data.len() <= MAX_MIDI_MSG_SIZE {
-            self.delta_frames = delta_frames;
-            self.data = data.to_vec();
-            self.len = data.len() as u8;
-
-            Ok(())
-        } else {
-            Err(data.len())
-        }
-    }
+    /////Clone data
+    //pub fn data_clone(&self) -> Vec<u8> {
+    //    self.data.clone()
+    //}
+    //
+    /////Clone delta_frames
+    //pub fn delta_frames_clone(&self) -> u64 {
+    //    self.delta_frames
+    //}
+    //
+    ///// The size of this MIDI message in bytes.
+    //pub fn len(&self) -> usize {
+    //    usize::from(self.len)
+    //}
+    //
+    ///// Setter
+    //pub fn set(&mut self, delta_frames: u64, data: &[u8]) -> Result<(), usize> {
+    //    if data.len() <= MAX_MIDI_MSG_SIZE {
+    //        self.delta_frames = delta_frames;
+    //        self.data = data.to_vec();
+    //        self.len = data.len() as u8;
+    //
+    //        Ok(())
+    //    } else {
+    //        Err(data.len())
+    //    }
+    //}
 }
 
 impl std::fmt::Debug for RawMidi {
@@ -108,6 +108,7 @@ pub struct Event {
     name: String,
     mesg_in: Vec<u8>,
     mesg_out: Option<Vec<Vec<u8>>>,
+    ext_value_out: Option<f32>,
     mod_rule: u8,            // 0 in->out, 1 in+x = out, 2 in-x = out,
     mod_amount: Option<f32>, // Increase/Descrease by
 }
@@ -118,6 +119,7 @@ impl Event {
         name: String,
         mesg_in: Vec<u8>,
         mesg_out: Option<Vec<Vec<u8>>>,
+        ext_value_out: Option<f32>,
         mod_rule: u8,
         mod_amount: Option<f32>,
     ) -> Result<Event, String> {
@@ -127,6 +129,7 @@ impl Event {
                 name,
                 mesg_in,
                 mesg_out,
+                ext_value_out,
                 mod_rule,
                 mod_amount,
             })
@@ -161,6 +164,10 @@ impl Event {
             None => None,
         }
     }
+
+    pub fn get_val_out(&self) -> Option<f32> {
+        self.ext_value_out
+    }
 }
 
 impl Default for Event {
@@ -170,6 +177,7 @@ impl Default for Event {
             name: "A No op Event".to_string(),
             mesg_in: Vec::new(),
             mesg_out: None,
+            ext_value_out: None,
             mod_rule: 0,
             mod_amount: None,
         }
@@ -193,7 +201,7 @@ impl std::fmt::Debug for Event {
         };
         write!(
             f,
-            "Midi Event #{} {} : \n Wait for : {:?}, Send : {{ {:?} }} following rule : {} by amount : {}{:?}",
+            "Midi Event #{} {} : \n Wait for : {:?}, Send : {{ {:?} }} following rule : {} by amount : {}{:?} \n Sending to client : {:?}",
             self.index+1,
             self.name,
             self.mesg_in,
@@ -201,6 +209,7 @@ impl std::fmt::Debug for Event {
             rule,
             amount,
             self.mod_amount,
+            self.ext_value_out
         )
     }
 }
