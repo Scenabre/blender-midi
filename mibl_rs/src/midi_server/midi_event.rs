@@ -1,6 +1,6 @@
-use std::u8;
-
-use crate::midi_server::container::{Event, RawMidi, Recipe, MAX_MIDI_MSG_SIZE};
+use crate::midi_server::container::{
+    Event, ExtTrigger, RawMidi, Recipe, TriggerResult, MAX_MIDI_MSG_SIZE,
+};
 use crate::midi_server::midi_send_mesg::make_raw_midi_mesg;
 use crate::midi_server::sys_event::SYS_EVENT_ARRAY;
 
@@ -30,6 +30,7 @@ pub fn craft_recipe(use_sys: &bool, custom_events: &Option<Recipe>) -> Result<Ve
                     name.to_string(),
                     vec![],
                     Some(vec![vec![0xB0, 0, 0]]),
+                    Some(0.5),
                     0,
                     None,
                 ),
@@ -38,6 +39,7 @@ pub fn craft_recipe(use_sys: &bool, custom_events: &Option<Recipe>) -> Result<Ve
                     name.to_string(),
                     vec![],
                     Some(vec![vec![0x90, 0, 0]]),
+                    Some(1.0),
                     0,
                     None,
                 ),
@@ -46,6 +48,7 @@ pub fn craft_recipe(use_sys: &bool, custom_events: &Option<Recipe>) -> Result<Ve
                     name.to_string(),
                     vec![0x90, *value, 0x7F],
                     Some(vec![vec![0x90, *value, 0x00]]),
+                    Some(1.0),
                     0,
                     None,
                 ),
@@ -59,7 +62,7 @@ pub fn craft_recipe(use_sys: &bool, custom_events: &Option<Recipe>) -> Result<Ve
     }
 
     if let Some(custom_events) = custom_events {
-        for (ev_in, evs_out) in custom_events {
+        for (ev_in, evs_out, val_out) in custom_events {
             let event: Option<Event> = match ev_in[0] {
                 0x90 | 0x80 => {
                     let name: Option<String> = match ev_in[1] {
@@ -102,7 +105,15 @@ pub fn craft_recipe(use_sys: &bool, custom_events: &Option<Recipe>) -> Result<Ve
                             vec_in[2] = 0x40;
                         }
 
-                        match Event::new(event_idx, name.unwrap(), vec_in, Some(vec_out), 0, None) {
+                        match Event::new(
+                            event_idx,
+                            name.unwrap(),
+                            vec_in,
+                            Some(vec_out),
+                            *val_out,
+                            0,
+                            None,
+                        ) {
                             Ok(ev) => Some(ev),
                             Err(err) => {
                                 println!("Unable to create custom events : {}", err);
@@ -122,6 +133,7 @@ pub fn craft_recipe(use_sys: &bool, custom_events: &Option<Recipe>) -> Result<Ve
                             name,
                             ev_in.clone(),
                             Some(evs_out.to_vec()),
+                            *val_out,
                             0,
                             None,
                         ) {
@@ -175,32 +187,11 @@ pub fn trigger_midi_events(
     stamp: &u64,
     mesg: &[u8],
     triggers: &[Event],
-) -> Result<Option<Vec<RawMidi>>, String> {
-    //let cc_60_ccw_event: Event = Event {
-    //    index: 0,
-    //    name: "CC #60 CCW → PB #1".to_string(),
-    //    mesg_in: vec![0xB0, 0x3C, 0x41],
-    //    cmd_out: Some(0xE1),
-    //    value_out: None,
-    //    mod_rule: 0,
-    //    mod_amount: Some(EPSILON),
-    //};
-    //
-    //let cc_60_cw_event: Event = Event {
-    //    index: 1,
-    //    name: "CC #60 CW → PB #1".to_string(),
-    //    mesg_in: vec![0xB0, 0x3C, 0x01],
-    //    cmd_out: Some(0xE1),
-    //    value_out: Some(vec![0, 0]),
-    //    mod_rule: 0,
-    //    mod_amount: None,
-    //};
-    //
-    //let triggers: Vec<&Event> = vec![&cc_60_cw_event, &cc_60_ccw_event];
+) -> Result<TriggerResult, String> {
+    let mut ext_trigger_result: Option<Vec<ExtTrigger>> = None;
+    let mut int_trigger_result: Option<Vec<RawMidi>> = None;
 
-    let mut trigger_result: Option<Vec<RawMidi>> = None;
-
-    for trigger in triggers.iter() {
+    for (idx, trigger) in triggers.iter().enumerate() {
         if mesg == trigger.get_mesg_in() {
             println!(
                 "Event triggered {} : {}",
@@ -208,17 +199,21 @@ pub fn trigger_midi_events(
                 trigger.get_name()
             );
 
-            let mut midi_mesg = Vec::<RawMidi>::with_capacity(MAX_MIDI_MSG_SIZE);
-
             if let Some(data) = trigger.get_mesg_data() {
+                let mut int_midi_mesg = Vec::<RawMidi>::with_capacity(MAX_MIDI_MSG_SIZE);
                 for mesg in data {
-                    midi_mesg.push(make_raw_midi_mesg(stamp, &mesg).unwrap());
+                    int_midi_mesg.push(make_raw_midi_mesg(stamp, mesg).unwrap());
                 }
+                int_trigger_result = Some(int_midi_mesg);
             }
 
-            trigger_result = Some(midi_mesg);
+            if let Some(val_out) = trigger.get_val_out() {
+                let mut ext_midi_mesg = Vec::<ExtTrigger>::with_capacity(MAX_MIDI_MSG_SIZE);
+                ext_midi_mesg.push((idx.try_into().unwrap(), val_out));
+                ext_trigger_result = Some(ext_midi_mesg);
+            }
         }
     }
 
-    Ok(trigger_result)
+    Ok((int_trigger_result, ext_trigger_result))
 }
