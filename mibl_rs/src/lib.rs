@@ -1,6 +1,6 @@
 use crate::midi_server::container::{RawMidi, Recipe, MAX_MIDI_MSG_SIZE};
 use crate::midi_server::midi_main::init_midi_audio;
-use midi_server::container::Event;
+use midi_server::container::{Event, ExtTrigger};
 use pyo3::prelude::*;
 use simple_logger::SimpleLogger;
 use std::sync::mpsc::channel;
@@ -13,29 +13,33 @@ mod node_utils;
 
 #[derive(Clone, Debug)]
 struct MiBlRustProcessInner {
-    tx_data: Vec<u8>,
-    rx_data: Vec<u8>,
-    rx_stamp: u64,
-    rx_len: u8,
+    tx_triggers: Vec<ExtTrigger>,
+    rx_triggers: Vec<ExtTrigger>,
     close_thread: bool,
     use_sysevent: bool,
-    sysevent: Event,
-    signals: Vec<String>,
     recipes: Recipe,
+    timestamp: [u8; 10],
+    lcd: Vec<(u8, u8, String)>,
+    vpot: Vec<(u8, u8, u8)>,
+    faders: Vec<(u8, f32)>,
+    chan_btns: Vec<(u8, u8, bool)>,
+    fps: u8,
 }
 
 impl MiBlRustProcessInner {
     fn new() -> Self {
         MiBlRustProcessInner {
-            tx_data: Vec::with_capacity(MAX_MIDI_MSG_SIZE),
-            rx_data: Vec::with_capacity(MAX_MIDI_MSG_SIZE),
-            rx_stamp: 0,
-            rx_len: 0,
+            tx_triggers: Vec::new(),
+            rx_triggers: Vec::new(),
             close_thread: false,
             use_sysevent: true,
-            sysevent: Event::default(),
-            signals: Vec::new(),
             recipes: Recipe::new(),
+            timestamp: [0; 10],
+            vpot: Vec::new(),
+            faders: Vec::new(),
+            chan_btns: Vec::new(),
+            lcd: Vec::new(),
+            fps: 24,
         }
     }
 }
@@ -54,60 +58,22 @@ impl MiBlRustProcess {
         MiBlRustProcess { inner: mibl }
     }
 
-    fn get_rx_data(&self) -> Vec<u8> {
-        self.inner
-            .lock()
-            .expect("lock not poisoned")
-            .rx_data
-            .clone()
+    fn get_triggers(&self) -> Vec<ExtTrigger> {
+        let mut triggers = vec![];
+        triggers.append(&mut self.inner.lock().expect("lock not poisoned").rx_triggers);
+        triggers
     }
 
-    fn get_tx_data(&self) -> Vec<u8> {
-        self.inner
-            .lock()
-            .expect("lock not poisoned")
-            .tx_data
-            .clone()
-    }
-
-    fn get_rx_stamp(&self) -> u64 {
-        self.inner.lock().expect("lock not poisoned").rx_stamp
-    }
-
-    fn get_data_len(&self) -> u8 {
-        self.inner.lock().expect("lock not poisoned").rx_len
-    }
-
-    fn set_rx_stamp(&self, stamp: u64) {
-        self.inner.lock().expect("lock not poisoned").rx_stamp = stamp;
-    }
-
-    fn set_rx_data(&self, rx_data: Vec<u8>) {
-        self.inner.lock().expect("lock not poisoned").rx_data = rx_data;
-    }
-
-    fn set_tx_data(&self, tx_data: Vec<u8>) {
-        self.inner.lock().expect("lock not poisoned").rx_data = tx_data;
+    fn set_triggers(&self, triggers: Vec<ExtTrigger>) {
+        self.inner.lock().expect("lock not poisoned").rx_triggers = triggers;
     }
 
     fn set_close_signal(&self, signal: bool) {
         self.inner.lock().expect("lock not poisoned").close_thread = signal;
     }
 
-    fn get_signal(&self) -> bool {
+    fn get_close_signal(&self) -> bool {
         self.inner.lock().expect("lock not poisoned").close_thread
-    }
-
-    fn set_sys_signals(&self, signals: Vec<String>) {
-        self.inner.lock().expect("lock not poisoned").signals = signals;
-    }
-
-    fn get_sys_signals(&self) -> Vec<String> {
-        self.inner
-            .lock()
-            .expect("lock not poisoned")
-            .signals
-            .clone()
     }
 
     fn mi_start_server_allow_thread(&self, py: Python) {
@@ -116,57 +82,40 @@ impl MiBlRustProcess {
 }
 
 fn mi_start_server(mibl: &MiBlRustProcess) {
-    //let duration = Duration::new(10, 0);
-    //let start = Instant::now();
-
-    //SimpleLogger::new()
-    //    .with_level(log::LevelFilter::Debug)
-    //    .without_timestamps()
-    //    .init()
-    //    .unwrap();
-
-    let (tx_channel_rx, rx_channel_rx) = channel::<(u64, Vec<u8>)>();
-    let (tx_channel_tx, rx_channel_tx) = channel::<(u64, Vec<u8>)>();
+    let (tx_channel_rx, rx_channel_rx) = channel::<Vec<ExtTrigger>>();
+    let (tx_channel_tx, rx_channel_tx) = channel::<Vec<ExtTrigger>>();
     let (tx_signal, rx_signal) = channel::<bool>();
-    let int_signal = Arc::new(Mutex::new(false));
-    let int_signal_arc = Arc::clone(&int_signal);
+    let int_signal_arc = Arc::new(Mutex::new(false));
+    let int_signal_arc_clone = Arc::clone(&int_signal_arc);
     let recipes_arc = Arc::new(Mutex::new(Recipe::new()));
 
     let mut last_stamp = 0;
 
     let midi_audio_thread = spawn(move || {
-        let sender_rx = tx_channel_rx.clone();
         let sender_tx = tx_channel_tx.clone();
         let sender_signal = tx_signal.clone();
 
-        init_midi_audio(
-            sender_tx,
-            sender_rx,
-            sender_signal,
-            int_signal_arc,
-            recipes_arc,
-        );
+        init_midi_audio(sender_tx, sender_signal, int_signal_arc_clone, recipes_arc);
     });
 
     loop {
-        let ext_signal = mibl.get_signal();
+        let ext_signal = mibl.get_close_signal();
 
         if ext_signal {
-            *int_signal.lock().unwrap() = true;
+            *int_signal_arc.lock().unwrap() = true;
             midi_audio_thread.join().unwrap();
             return;
         }
 
-        if let Ok((stamp, rx_data)) = rx_channel_rx.try_recv() {
-            mibl.set_rx_stamp(stamp);
-            mibl.set_rx_data(rx_data);
+        if let Ok(triggers) = rx_channel_rx.try_recv() {
+            mibl.set_triggers(triggers);
         }
 
         if let Ok(signal) = rx_signal.try_recv() {
             mibl.set_close_signal(signal)
         }
 
-        sleep(Duration::from_millis(100));
+        sleep(Duration::from_millis(10));
     }
 }
 
