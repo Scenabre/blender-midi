@@ -1,6 +1,7 @@
 use crate::midi_server::container::{Event, RawMidi};
 use crate::midi_server::midi_event::trigger_midi_events;
-use std::sync::{Arc, Mutex};
+
+use super::container::{ExtTrigger, TriggerResult};
 
 #[derive(Debug, Clone)]
 pub struct MidiMesg {
@@ -22,7 +23,7 @@ impl MidiMesg {
 #[derive(Debug)]
 pub struct MidiProcess {
     pub result: MidiMesg,
-    pub to_send: Option<Vec<RawMidi>>,
+    pub to_send: TriggerResult,
 }
 
 pub type MidiResult = Result<MidiProcess, &'static str>;
@@ -263,15 +264,15 @@ pub fn process_midi_mesg(
         return Err("User press PANIC on midi device !");
     }
 
-    let midi_mesg_to_send: Option<Vec<RawMidi>> = match triggers {
+    let midi_mesg_to_send: TriggerResult = match triggers {
         Some(triggers) => match trigger_midi_events(event.delta_frames(), event_data, triggers) {
-            Ok(raw_midi) => raw_midi,
+            Ok((int_triggers, ext_triggers)) => (int_triggers, ext_triggers),
             Err(err) => {
                 println!("Error when query events vector : {}", err);
-                None
+                (None, None)
             }
         },
-        None => None,
+        None => (None, None),
     };
 
     let channel: u8 = get_channel(cmd);
