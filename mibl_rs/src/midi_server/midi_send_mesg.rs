@@ -1,4 +1,8 @@
-use crate::midi_server::container::{RawMidi, MAX_MIDI_MSG_SIZE};
+use std::os::linux::raw;
+
+use rand::seq::IndexedRandom;
+
+use crate::midi_server::container::{InitDevice, RawMidi, MAX_MIDI_MSG_SIZE};
 use crate::midi_server::math_utils::split_digits;
 use crate::midi_server::sys_event::SYS_EVENT_ARRAY;
 
@@ -354,8 +358,7 @@ pub fn send_note_bang(note: u8, led_value: u8) -> Result<Vec<RawMidi>, String> {
     Err(format!("Bad led mode {} : 0 or any even value to LED Off, 1 or any odd value to LED Blink, 127 to LED On", led_value))
 }
 
-pub fn initialize_mc_device() -> Result<Vec<RawMidi>, String> {
-    log::info!("Initilizing midi device : ");
+pub fn initialize_mc_device(init_values: &InitDevice) -> Result<Vec<RawMidi>, String> {
     let mut raw_midi_mesg: Vec<RawMidi> = Vec::new();
 
     let pitch_bend_prefix = 0xE0;
@@ -364,10 +367,69 @@ pub fn initialize_mc_device() -> Result<Vec<RawMidi>, String> {
 
     let mut midi_mesg: Vec<u8> = Vec::with_capacity(MAX_MIDI_MSG_SIZE);
 
-    for pb_idx in 0..9 {
+    let timestamp = init_values.get_timestamp();
+
+    match timestamp_gen(
+        timestamp[3].into(),
+        timestamp[2].into(),
+        timestamp[1].into(),
+        timestamp[0].into(),
+    ) {
+        Ok(timestamp) => {
+            for midi_mesg in timestamp {
+                raw_midi_mesg.push(midi_mesg);
+            }
+        }
+        Err(err) => println!("Unable to generate timestamp : {}", err),
+    }
+
+    match assign_gen(0) {
+        Ok(vec_raw_midi) => {
+            for raw_midi in vec_raw_midi {
+                raw_midi_mesg.push(raw_midi);
+            }
+        }
+        Err(err) => println!("Unable to generate assign digit : {}", err),
+    }
+
+    if let Some(lcd_vec) = init_values.get_lcd_vec() {
+        for lcd_mesg in lcd_vec {
+            match make_lcd_mesg(time, lcd_mesg.0, lcd_mesg.1, lcd_mesg.2.clone()) {
+                Ok(raw_midi) => {
+                    raw_midi_mesg.push(raw_midi);
+                }
+                Err(err) => println!("Unable to generate lcd mesg : {}", err),
+            }
+        }
+    } else {
+        let mut lcd_string = "She bath'd with roses red, and violets blue, And all the sweetest flowres, that in the forrest grew.".to_string();
+        if let Some(init_lcd_str) = init_values.get_lcd_string() {
+            lcd_string = init_lcd_str.to_string();
+        }
+
+        match gen_lcd_string(time, Some(lcd_string)) {
+            Ok(vec_raw_midi) => {
+                for raw_midi in vec_raw_midi {
+                    raw_midi_mesg.push(raw_midi);
+                }
+            }
+            Err(err) => println!("Unable to generate lcd string : {}", err),
+        }
+    }
+
+    for vpot in init_values.get_vpots() {
+        match pan_knob_gen(vpot[1], vpot[0], vpot[2]) {
+            Ok(raw_midi) => raw_midi_mesg.push(raw_midi),
+            Err(err) => println!("Unable to create Pan Knob midi message : {}", err),
+        }
+    }
+
+    for fader in init_values.get_faders() {
+        let pb_idx = fader.0;
+        let pb_value = fader.1;
         let pb_num = pitch_bend_prefix + pb_idx;
 
-        let (lsb, msb) = convert_value_to_lsb_msb(0.75);
+        let (lsb, msb) = convert_value_to_lsb_msb(pb_value);
 
         midi_mesg.push(pb_num);
         midi_mesg.push(lsb);
@@ -386,41 +448,28 @@ pub fn initialize_mc_device() -> Result<Vec<RawMidi>, String> {
         midi_mesg.clear();
     }
 
-    for pan_idx in 1..9 {
-        match pan_knob_gen(3, pan_idx, 0x06) {
-            Ok(raw_midi) => raw_midi_mesg.push(raw_midi),
-            Err(err) => println!("Unable to create Pan Knob midi message : {}", err),
-        }
-    }
+    for chan_btns in init_values.get_chan_btns() {
+        let channel = chan_btns.0;
+        let btn_num = chan_btns.1;
+        let btn_status = match chan_btns.2 {
+            true => 0xF7,
+            false => 0x00,
+        };
 
-    match timestamp_gen(1, 45, 30, 250) {
-        Ok(timestamp) => {
-            for midi_mesg in timestamp {
-                raw_midi_mesg.push(midi_mesg);
+        let note: u8 = btn_num * 8 + channel;
+
+        if (0x00..=0x1F).contains(&note) {
+            match send_note_bang(note, btn_status) {
+                Ok(bang_raw_midi) => {
+                    for raw_midi in bang_raw_midi {
+                        raw_midi_mesg.push(raw_midi)
+                    }
+                }
+                Err(err) => println!("Unable to generate note channel bang mesg : {}", err),
             }
+        } else {
+            println!("Channel button not in range (0x00..=0x1F) : {:X}", note);
         }
-        Err(err) => println!("Unable to generate timestamp : {}", err),
-    }
-
-    // Default assignment digit
-    match assign_gen(55) {
-        Ok(vec_raw_midi) => {
-            for raw_midi in vec_raw_midi {
-                raw_midi_mesg.push(raw_midi);
-            }
-        }
-        Err(err) => println!("Unable to generate assign digit : {}", err),
-    }
-
-    let test_mesg = "She bath'd with roses red, and violets blue, And all the sweetest flowres, that in the forrest grew.".to_string();
-
-    match gen_lcd_string(time, Some(test_mesg)) {
-        Ok(vec_raw_midi) => {
-            for raw_midi in vec_raw_midi {
-                raw_midi_mesg.push(raw_midi);
-            }
-        }
-        Err(err) => println!("Unable to generate lcd string : {}", err),
     }
 
     for meter in 0..=7 {
