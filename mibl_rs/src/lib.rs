@@ -1,8 +1,7 @@
-use crate::midi_server::container::{RawMidi, Recipe, MAX_MIDI_MSG_SIZE};
+use crate::midi_server::container::Recipe;
 use crate::midi_server::midi_main::init_midi_audio;
-use midi_server::container::{Event, ExtTrigger};
+use midi_server::container::{Event, ExtTrigger, InitDevice};
 use pyo3::prelude::*;
-use simple_logger::SimpleLogger;
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
 use std::thread::{sleep, spawn};
@@ -18,12 +17,7 @@ struct MiBlRustProcessInner {
     close_thread: bool,
     use_sysevent: bool,
     recipes: Recipe,
-    timestamp: [u8; 10],
-    lcd: Vec<(u8, u8, String)>,
-    vpot: Vec<(u8, u8, u8)>,
-    faders: Vec<(u8, f32)>,
-    chan_btns: Vec<(u8, u8, bool)>,
-    fps: u8,
+    init_device: InitDevice,
 }
 
 impl MiBlRustProcessInner {
@@ -34,12 +28,7 @@ impl MiBlRustProcessInner {
             close_thread: false,
             use_sysevent: true,
             recipes: Recipe::new(),
-            timestamp: [0; 10],
-            vpot: Vec::new(),
-            faders: Vec::new(),
-            chan_btns: Vec::new(),
-            lcd: Vec::new(),
-            fps: 24,
+            init_device: InitDevice::default(),
         }
     }
 }
@@ -76,6 +65,16 @@ impl MiBlRustProcess {
         self.inner.lock().expect("lock not poisoned").close_thread
     }
 
+    //fn update_init_params(&self, )
+
+    //fn get_init_params(&self) -> InitDevice {
+    //    self.inner
+    //        .lock()
+    //        .expect("lock not poisoned")
+    //        .init_device
+    //        .clone()
+    //}
+
     fn mi_start_server_allow_thread(&self, py: Python) {
         py.allow_threads(|| mi_start_server(self));
     }
@@ -88,6 +87,8 @@ fn mi_start_server(mibl: &MiBlRustProcess) {
     let int_signal_arc = Arc::new(Mutex::new(false));
     let int_signal_arc_clone = Arc::clone(&int_signal_arc);
     let recipes_arc = Arc::new(Mutex::new(Recipe::new()));
+    let init_params = Arc::new(Mutex::new(InitDevice::default()));
+    let init_params_clone = Arc::clone(&init_params);
 
     let mut last_stamp = 0;
 
@@ -95,7 +96,13 @@ fn mi_start_server(mibl: &MiBlRustProcess) {
         let sender_tx = tx_channel_tx.clone();
         let sender_signal = tx_signal.clone();
 
-        init_midi_audio(sender_tx, sender_signal, int_signal_arc_clone, recipes_arc);
+        init_midi_audio(
+            sender_tx,
+            sender_signal,
+            int_signal_arc_clone,
+            recipes_arc,
+            init_params_clone,
+        );
     });
 
     loop {

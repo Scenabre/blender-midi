@@ -213,3 +213,112 @@ impl std::fmt::Debug for Event {
         )
     }
 }
+
+#[derive(Clone)]
+pub struct InitDevice {
+    timestamp: [u8; 4],
+    lcd_vec: Option<Vec<(u8, u8, String)>>,
+    lcd_string: Option<String>,
+    vpot: Vec<[u8; 3]>,
+    faders: Vec<(u8, f32)>,
+    chan_btns: Vec<(u8, u8, bool)>,
+    fps: u8,
+}
+
+impl InitDevice {
+    pub fn new(
+        timestamp: [u8; 4],
+        lcd_vec: Option<Vec<(u8, u8, String)>>, // (lcd_#, line_#, Message)
+        lcd_string: Option<String>,
+        vpot: Vec<[u8; 3]>,             // [vpot_idx, mode, value]
+        faders: Vec<(u8, f32)>,         // [fader_num, pb_value]
+        chan_btns: Vec<(u8, u8, bool)>, // (chan_#, btn_#, on/off)
+        fps: u8,
+    ) -> Result<InitDevice, String> {
+        if let Some(lcd_vec) = &lcd_vec {
+            if lcd_vec.len() > 14 {
+                return Err("LCD length".to_string());
+            }
+        }
+
+        for chan_btns in &chan_btns[..] {
+            let channel = chan_btns.0;
+            let btn_num = chan_btns.1;
+
+            let note: u8 = btn_num * 8 + channel;
+
+            if !(0x00..=0x1F).contains(&note) {
+                return Err("Channel button not in range".to_string());
+            }
+        }
+
+        Ok(Self {
+            timestamp,
+            lcd_vec,
+            lcd_string,
+            vpot,
+            faders,
+            chan_btns,
+            fps,
+        })
+    }
+
+    pub fn get_timestamp(&self) -> &[u8; 4] {
+        &self.timestamp
+    }
+
+    pub fn get_lcd_vec(&self) -> &Option<Vec<(u8, u8, String)>> {
+        &self.lcd_vec
+    }
+
+    pub fn get_lcd_string(&self) -> &Option<String> {
+        &self.lcd_string
+    }
+
+    pub fn get_vpots(&self) -> &Vec<[u8; 3]> {
+        &self.vpot
+    }
+
+    pub fn get_faders(&self) -> &Vec<(u8, f32)> {
+        &self.faders
+    }
+
+    pub fn get_chan_btns(&self) -> &Vec<(u8, u8, bool)> {
+        &self.chan_btns
+    }
+}
+
+impl Default for InitDevice {
+    fn default() -> Self {
+        InitDevice {
+            timestamp: [0; 4],
+            lcd_vec: None,
+            lcd_string: Some("This is a sample LCD string".to_string()),
+            vpot: Vec::new(),
+            faders: Vec::new(),
+            chan_btns: Vec::new(),
+            fps: 24,
+        }
+    }
+}
+
+impl std::fmt::Debug for InitDevice {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let frames = &self.timestamp[0];
+        let seconds = &self.timestamp[1];
+        let minutes = &self.timestamp[2];
+        let hours = &self.timestamp[3];
+        write!(f, "Initialize Device with values : \n Timestamp (fps : {}) : {:?}h {:?}m {:?}s {:?}f \n Lcd values : {:?} \n VPot : {:?} {:?} \n Faders : {:?} \n Channels Buttons : {:?}",
+            self.fps,
+            hours,
+            minutes,
+            seconds,
+            frames,
+            self.lcd_vec,
+            self.lcd_string,
+            self.vpot,
+            self.faders,
+            self.chan_btns
+        )
+    }
+}
