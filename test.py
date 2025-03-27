@@ -11,7 +11,7 @@ def update_loop(thread):
     count = 0
     try:
         while True:
-            signal = mibl_rs.get_signal()
+            signal = mibl_rs.get_close_signal()
 
             if signal:
                 print("Getting stop signal !")
