@@ -93,7 +93,7 @@ fn mi_start_server(mibl: &MiBlRustProcess) {
     let mut last_stamp = 0;
 
     let midi_audio_thread = spawn(move || {
-        let sender_tx = tx_channel_tx.clone();
+        let sender_tx = tx_channel_rx.clone();
         let sender_signal = tx_signal.clone();
 
         init_midi_audio(
