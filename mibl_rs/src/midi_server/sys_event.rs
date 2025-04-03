@@ -1,5 +1,3 @@
-use crate::midi_server::container::Event;
-
 pub const SYS_EVENT_ARRAY: [(u8, &str); 66] = [
     (0x28, "EA_Track"),
     (0x2A, "EA_PAN"),
@@ -68,8 +66,6 @@ pub const SYS_EVENT_ARRAY: [(u8, &str); 66] = [
     (0x72, "LED_Beats"),
     (0x73, "LED_Solo"),
 ];
-
-//pub const
 
 // ** LED **
 // SMPTE Led :	0x71
