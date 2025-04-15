@@ -215,26 +215,26 @@ impl std::fmt::Debug for Event {
 }
 
 #[derive(Clone)]
-pub struct InitDevice {
-    timestamp: [u8; 4],
+pub struct DeviceState {
+    timestamp: [usize; 4],
     lcd_vec: Option<Vec<(u8, u8, String)>>,
     lcd_string: Option<String>,
     vpot: Vec<[u8; 3]>,
     faders: Vec<(u8, f32)>,
     chan_btns: Vec<(u8, u8, bool)>,
-    fps: u8,
+    fps: u64,
 }
 
-impl InitDevice {
+impl DeviceState {
     pub fn new(
-        timestamp: [u8; 4],
+        timestamp: [usize; 4],
         lcd_vec: Option<Vec<(u8, u8, String)>>, // (lcd_#, line_#, Message)
         lcd_string: Option<String>,
         vpot: Vec<[u8; 3]>,             // [vpot_idx, mode, value]
         faders: Vec<(u8, f32)>,         // [fader_num, pb_value]
         chan_btns: Vec<(u8, u8, bool)>, // (chan_#, btn_#, on/off)
-        fps: u8,
-    ) -> Result<InitDevice, String> {
+        fps: u64,
+    ) -> Result<DeviceState, String> {
         if let Some(lcd_vec) = &lcd_vec {
             if lcd_vec.len() > 14 {
                 return Err("LCD length".to_string());
@@ -263,7 +263,7 @@ impl InitDevice {
         })
     }
 
-    pub fn get_timestamp(&self) -> &[u8; 4] {
+    pub fn get_timestamp(&self) -> &[usize; 4] {
         &self.timestamp
     }
 
@@ -286,11 +286,23 @@ impl InitDevice {
     pub fn get_chan_btns(&self) -> &Vec<(u8, u8, bool)> {
         &self.chan_btns
     }
+
+    pub fn get_fps(&self) -> &u64 {
+        &self.fps
+    }
+
+    pub fn set_fps(&mut self, fps: u64) {
+        self.fps = fps
+    }
+
+    pub fn set_timestamp(&mut self, hours: usize, minutes: usize, seconds: usize, frames: usize) {
+        self.timestamp = [hours, minutes, seconds, frames]
+    }
 }
 
-impl Default for InitDevice {
+impl Default for DeviceState {
     fn default() -> Self {
-        InitDevice {
+        DeviceState {
             timestamp: [0; 4],
             lcd_vec: None,
             lcd_string: Some("This is a sample LCD string".to_string()),
@@ -302,7 +314,7 @@ impl Default for InitDevice {
     }
 }
 
-impl std::fmt::Debug for InitDevice {
+impl std::fmt::Debug for DeviceState {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let frames = &self.timestamp[0];
         let seconds = &self.timestamp[1];

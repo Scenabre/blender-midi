@@ -1,8 +1,4 @@
-use std::os::linux::raw;
-
-use rand::seq::IndexedRandom;
-
-use crate::midi_server::container::{InitDevice, RawMidi, MAX_MIDI_MSG_SIZE};
+use crate::midi_server::container::{DeviceState, RawMidi, MAX_MIDI_MSG_SIZE};
 use crate::midi_server::math_utils::split_digits;
 use crate::midi_server::sys_event::SYS_EVENT_ARRAY;
 
@@ -358,7 +354,7 @@ pub fn send_note_bang(note: u8, led_value: u8) -> Result<Vec<RawMidi>, String> {
     Err(format!("Bad led mode {} : 0 or any even value to LED Off, 1 or any odd value to LED Blink, 127 to LED On", led_value))
 }
 
-pub fn initialize_mc_device(init_values: &InitDevice) -> Result<Vec<RawMidi>, String> {
+pub fn initialize_mc_device(init_values: &DeviceState) -> Result<Vec<RawMidi>, String> {
     let mut raw_midi_mesg: Vec<RawMidi> = Vec::new();
 
     let pitch_bend_prefix = 0xE0;
@@ -369,12 +365,7 @@ pub fn initialize_mc_device(init_values: &InitDevice) -> Result<Vec<RawMidi>, St
 
     let timestamp = init_values.get_timestamp();
 
-    match timestamp_gen(
-        timestamp[3].into(),
-        timestamp[2].into(),
-        timestamp[1].into(),
-        timestamp[0].into(),
-    ) {
+    match timestamp_gen(timestamp[3], timestamp[2], timestamp[1], timestamp[0]) {
         Ok(timestamp) => {
             for midi_mesg in timestamp {
                 raw_midi_mesg.push(midi_mesg);

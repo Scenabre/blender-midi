@@ -1,6 +1,7 @@
 use crate::midi_server::container::Recipe;
 use crate::midi_server::midi_main::init_midi_audio;
-use midi_server::container::{Event, ExtTrigger, InitDevice};
+use core::time;
+use midi_server::container::{DeviceState, Event, ExtTrigger};
 use pyo3::prelude::*;
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
@@ -17,7 +18,7 @@ struct MiBlRustProcessInner {
     close_thread: bool,
     use_sysevent: bool,
     recipes: Recipe,
-    init_device: InitDevice,
+    device_state: DeviceState,
 }
 
 impl MiBlRustProcessInner {
@@ -28,7 +29,7 @@ impl MiBlRustProcessInner {
             close_thread: false,
             use_sysevent: true,
             recipes: Recipe::new(),
-            init_device: InitDevice::default(),
+            device_state: DeviceState::default(),
         }
     }
 }
@@ -65,15 +66,31 @@ impl MiBlRustProcess {
         self.inner.lock().expect("lock not poisoned").close_thread
     }
 
-    //fn update_init_params(&self, )
+    fn set_fps(&self, fps: u64) {
+        self.inner
+            .lock()
+            .expect("lock not poisoned")
+            .device_state
+            .set_fps(fps);
+    }
 
-    //fn get_init_params(&self) -> InitDevice {
-    //    self.inner
-    //        .lock()
-    //        .expect("lock not poisoned")
-    //        .init_device
-    //        .clone()
-    //}
+    fn get_timestamp(&self) -> [usize; 4] {
+        *self
+            .inner
+            .lock()
+            .expect("lock not poisoned")
+            .device_state
+            .get_timestamp()
+    }
+
+    fn set_timestamp(&self, hours: usize, minutes: usize, seconds: usize, frames: usize) {
+        println!("Setting timestamp…");
+        self.inner
+            .lock()
+            .expect("lock not poisoned")
+            .device_state
+            .set_timestamp(hours, minutes, seconds, frames);
+    }
 
     fn mi_start_server_allow_thread(&self, py: Python) {
         py.allow_threads(|| mi_start_server(self));
@@ -83,30 +100,36 @@ impl MiBlRustProcess {
 fn mi_start_server(mibl: &MiBlRustProcess) {
     let (tx_channel_rx, rx_channel_rx) = channel::<Vec<ExtTrigger>>();
     let (tx_channel_tx, rx_channel_tx) = channel::<Vec<ExtTrigger>>();
-    let (tx_signal, rx_signal) = channel::<bool>();
+    let (tx_device_state, rx_device_state) = channel::<DeviceState>();
     let int_signal_arc = Arc::new(Mutex::new(false));
     let int_signal_arc_clone = Arc::clone(&int_signal_arc);
     let recipes_arc = Arc::new(Mutex::new(Recipe::new()));
-    let init_params = Arc::new(Mutex::new(InitDevice::default()));
-    let init_params_clone = Arc::clone(&init_params);
+    let init_params = DeviceState::default();
+
+    let timestamp_arc = Arc::new(Mutex::new([0; 4]));
+    let timestamp_arc_clone = Arc::clone(&timestamp_arc);
 
     let mut last_stamp = 0;
 
     let midi_audio_thread = spawn(move || {
         let sender_tx = tx_channel_rx.clone();
-        let sender_signal = tx_signal.clone();
+        let sender_device_state = tx_device_state.clone();
 
         init_midi_audio(
             sender_tx,
-            sender_signal,
+            sender_device_state,
             int_signal_arc_clone,
             recipes_arc,
-            init_params_clone,
+            &init_params.clone(),
+            timestamp_arc_clone,
         );
     });
 
     loop {
         let ext_signal = mibl.get_close_signal();
+        let timestamp_py = mibl.get_timestamp();
+
+        *timestamp_arc.lock().unwrap() = timestamp_py;
 
         if ext_signal {
             *int_signal_arc.lock().unwrap() = true;
@@ -118,8 +141,9 @@ fn mi_start_server(mibl: &MiBlRustProcess) {
             mibl.set_triggers(triggers);
         }
 
-        if let Ok(signal) = rx_signal.try_recv() {
-            mibl.set_close_signal(signal)
+        if let Ok(device_state) = rx_device_state.try_recv() {
+            println!("Hey !");
+            println!("{:?}", device_state);
         }
 
         sleep(Duration::from_millis(10));
