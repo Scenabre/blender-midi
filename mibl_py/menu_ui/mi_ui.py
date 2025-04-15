@@ -17,14 +17,25 @@ node_categories = [
         NodeItem("NODE_MI_BL_value_input"),
         NodeItem("NODE_MI_BL_object"),
     ]),
-    MI_BL_NodeCategory('MIDI_PARAMS', "Midi Utils", items=[
-        NodeItem("NODE_MI_BL_MIDI_Params"),
+    MI_BL_NodeCategory('LAYOUT', "Layout", items=[
+        NodeItem("NodeReroute"),
+    ]),
+    MI_BL_NodeCategory('MIDI_PARAMS', "Midi System", items=[
         NodeItem("NODE_MI_BL_MIDI_LCD"),
-        NodeItem("NODE_MI_BL_MIDI_TriggerCOOK"),
-        NodeItem("NODE_MI_BL_MIDI_SystemCOOK"),
+        NodeItem("NODE_MI_BL_MIDI_VPOT"),
+
+    ]),
+    MI_BL_NodeCategory('MIDI_TRIGGERS', "Midi triggers", items=[
         NodeItem("NODE_MI_BL_MIDI_Trigger_Note"),
+        NodeItem("NODE_MI_BL_MIDI_Trigger_SpecialNote"),
         NodeItem("NODE_MI_BL_MIDI_Trigger_Fader"),
         NodeItem("NODE_MI_BL_MIDI_Trigger_Pan"),
+        NodeItem("NODE_MI_BL_MIDI_Trigger_Usr_Btns"),
+    ]),
+    MI_BL_NodeCategory('COLLECTION', "Collect nodes", items=[
+        NodeItem("NODE_MI_BL_MIDI_SystemCOOK"),
+        NodeItem("NODE_MI_BL_MIDI_TriggerCOOK"),
+        NodeItem("NODE_MI_BL_MIDI_CollectAttrs"),
     ]),
     MI_BL_NodeCategory('OUTPUT', "Output", items=[
         NodeItem("NODE_MI_BL_group_output"),
