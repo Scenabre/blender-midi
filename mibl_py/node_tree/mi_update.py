@@ -2,12 +2,7 @@ import bpy
 
 
 def execute_active_node_tree():
-    print("Trigger node tree execute")
-    node_editor = next((a for a in bpy.context.screen.areas if a.type == 'NODE_EDITOR'), None)
-    if node_editor is None:
-        return
-    for space in node_editor.spaces:
-        node_tree = getattr(space, 'node_tree')
-        if (node_tree):
+    for node_tree in bpy.data.node_groups:
+        if hasattr(node_tree, '_isMiNodetree'):
+            print("Trigger node tree execute")
             node_tree.execute(bpy.context)
-            break
