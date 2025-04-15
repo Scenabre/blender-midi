@@ -11,6 +11,8 @@ import os
 import pkgutil
 import importlib
 import datetime
+import faulthandler
+from bpy.app import timers
 
 
 def install_mibllib():
@@ -39,40 +41,65 @@ def check_if_exists(name) -> bool:
         if importlib.util.find_spec(name) is None:
             print("Module {} not found".format(name))
             return False
-        print("Module found")
+        print("MiBl python module already installed")
         return True
 
 
 def query_all_modules(attr):
     current_dir = os.path.dirname(__file__)
+    attr_fn = {}
 
     for _, module_name, is_pkg in pkgutil.iter_modules([current_dir]):
         if is_pkg:
             module = importlib.import_module(f"{__name__}.{module_name}")
             if hasattr(module, attr):
                 print("Query module : ", module)
-                run_fn = getattr(module, attr)
-                run_fn()
+                module_fn = getattr(module, attr)
+                attr_fn[module_name] = module_fn
 
+    return attr_fn
 
 # def menu_func(self, context):
 #     self.layout.operator(my_custom_node.MyCustomTestNode.bl_idname)
 
 
 def register():
+    faulthandler.enable(all_threads=True)
+    global update_func
+
     print("----- Register plugin MiBL -----")
     print(datetime.datetime.now())
     print("-----")
     install_mibllib()  # Test all the code then uncomment !
-    query_all_modules('register')
+    attr_fn = query_all_modules('register')
+
+    attr_fn['node_tree']()
+    attr_fn['ops']()
+    attr_fn['props']()
+    attr_fn['sockets']()
+    attr_fn['nodes']()
+    attr_fn['menu_ui']()
+
     print("---- Registering done ! ----")
 
 
 def unregister():
+    global update_func
+
     print("----- Unregister plugin MiBL -----")
     print(datetime.datetime.now())
     print("-----")
-    query_all_modules('unregister')
+    attr_fn = query_all_modules('unregister')
+
+    attr_fn['nodes']()
+    attr_fn['sockets']()
+    attr_fn['props']()
+    attr_fn['ops']()
+    attr_fn['menu_ui']()
+    attr_fn['node_tree']()
+
+    faulthandler.disable()
+
     print("---- Unregistering done ! ----")
 
 
