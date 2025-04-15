@@ -4,7 +4,6 @@ import importlib
 import inspect
 from bpy.utils import register_class, unregister_class
 from .. node_tree.mi_update import execute_active_node_tree
-from . mi_input_nodes import NODE_MI_BL_value_input
 
 
 def query_all_classes():
@@ -30,27 +29,20 @@ def register():
     for idx, cls in enumerate(classes):
         print("Register class : ", cls.__name__)
         register_class(cls)
-
-        if hasattr(cls, 'custom_idx'):
-            print("Found custom_idx in Class : ", cls.__name__)
-
-    bpy.msgbus.subscribe_rna(
-        key=NODE_MI_BL_value_input,
-        owner=0,
-        args=(),
-        notify=execute_active_node_tree,
-        options={"PERSISTENT", }
-    )
+        if cls.__name__[:4] == "NODE":
+            print("Subscribe RNA for : ", cls.__name__)
+            bpy.msgbus.subscribe_rna(
+                key=cls,
+                owner='mibl',
+                args=(),
+                notify=execute_active_node_tree,
+                options={"PERSISTENT", }
+            )
 
 
 def unregister():
     classes = query_all_classes()
     for cls in reversed(classes):
         print("Unregister class : ", cls.__name__)
-
-        if hasattr(cls, '_index'):
-            if cls._index != -1:
-                print("Unregister msgbus")
-                bpy.msgbus.clear_by_owner(cls._index)
-
+        bpy.msgbus.clear_by_owner('mibl')
         unregister_class(cls)
