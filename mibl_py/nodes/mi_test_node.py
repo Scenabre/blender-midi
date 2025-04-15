@@ -23,5 +23,5 @@ class NODE_MI_BL_Test(Node, MI_BL_Node):
         self.outputs['Pass Through A'].default_value = input_a
         self.outputs['Pass Through B'].default_value = input_b
 
-    def update(self):
-        self.execute()
+    # def update(self):
+    #     self.execute()

@@ -30,8 +30,8 @@ class NODE_MI_BL_MATH_add(Node, MI_BL_Node):
         self.float_output = result
         print("Node compute : ", result)
 
-    def update(self):
-        self.execute()
+    # def update(self):
+    #     self.execute()
         
     def draw_label(self):
         return "Mi Math Node"

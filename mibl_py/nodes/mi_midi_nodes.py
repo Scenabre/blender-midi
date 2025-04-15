@@ -1,124 +1,9 @@
-import bpy
 from mibllib import *
 from bpy.types import Node
-from bpy.props import EnumProperty, FloatProperty, IntProperty
+from bpy.props import EnumProperty, FloatProperty, IntProperty, BoolProperty
 from .. node_tree.mi_node_tree import MI_BL_Node
-
-class NODE_MI_BL_MIDI_Params(Node, MI_BL_Node):
-    '''MiBl Midi Server Parameters'''
-    bl_idname = 'NODE_MI_BL_MIDI_Params'
-    bl_label = 'MI Midi Params'
-    bl_icon = 'NODETREE'
-
-    channel_enum: EnumProperty(
-        name='',
-        items=(
-            ('1', "Channel 1", ""),
-            ('2', "Channel 2", ""),
-            ('3', "Channel 3", ""),
-            ('4', "Channel 4", ""),
-            ('5', "Channel 5", ""),
-            ('6', "Channel 6", ""),
-            ('7', "Channel 7", ""),
-            ('8', "Channel 8", ""),
-            ('9', "Channel 9", ""),
-            ('10', "Channel 10", ""),
-            ('11', "Channel 11", ""),
-            ('12', "Channel 12", ""),
-            ('13', "Channel 13", ""),
-            ('14', "Channel 14", ""),
-            ('15', "Channel 15", ""),
-            ('16', "Channel 16", ""),
-        ),
-        default='1'
-    )
-
-    def init(self, context):
-        self.outputs.new('NodeSocketInt', "Target channel")
-        self.outputs.new('NodeSocketVectorInt', "Midi Message In")
-        self.outputs.new('NodeSocketInt', "Time Stamp")
-
-    def draw_buttons(self, context, layout):
-        mibl_props = context.scene.mibl
-        row = layout.row()
-
-        if mibl_props.mi_run_server:
-            row.operator("mibl.set_server_state", text="Stop Midi Server")
-        else:
-            row.operator("mibl.set_server_state", text="Start Midi Server")
-
-        layout.label(text="Server controls :")
-        layout.prop(mibl_props, 'mi_use_system_ctlr', text="Use MC system control")
-
-        layout.label(text="Server Channel")
-        layout.prop(self, "channel_enum")
-
-    def execute(self):
-        midi_channel = self.channel_enum
-        bpy.context.scene.mibl.mi_midi_channel.append(midi_channel)
-        print(bpy.context.scene.mibl.mi_midi_channel)
-
-    def update(self):
-        self.execute()
-
-
-class NODE_MI_BL_MIDI_Cooking_Recipe(Node, MI_BL_Node):
-    '''MiBl Concatenate all ingredients in one meal'''
-    bl_idname = 'NODE_MI_BL_MIDI_COOK'
-    bl_label = 'MI Cooking ingredients'
-
-    def init(self, context):
-        ingredients = self.inputs.new('SOCKET_MI_BL_Midi_Recipe', "MIDI Recipes")
-        ingredients.link_limit = 32
-        self.outputs.new('SOCKET_MI_BL_Midi_Recipe', "MIDI cooking recipe")
-
-    def execute(self):
-        pass
-
-    def update(self):
-        self.execute()
-
-
-
-class NODE_MI_BL_MIDI_LCD(Node, MI_BL_Node):
-    '''MiBl Display String into LCD'''
-    bl_idname = 'NODE_MI_BL_MIDI_LCD'
-    bl_label = 'MI String to LCD'
-
-    fader_num: IntProperty(
-        name='LCD #',
-        min=1,
-        max=8,
-        soft_min=1,
-        soft_max=8,
-        default=1
-    )
-
-    line_num: IntProperty(
-        name='Line #',
-        min=1,
-        max=2,
-        soft_min=1,
-        soft_max=2,
-        default=1
-    )
-
-    def init(self, context):
-        self.inputs.new('NodeSocketString', "Text")
-        self.outputs.new('SOCKET_MI_BL_Midi_Recipe', "System Recipe")
-
-    def draw_buttons(self, context, layout):
-        mibl_props = context.scene.mibl
-        row = layout.row()
-
-        layout.prop(self, "fader_num")
-        layout.prop(self, "line_num")
-
-    def execute(self):
-        pass
-
-    def update(self):
-        self.execute()
+from .. utils.mibl_utils import generate_midi_note_bang, get_midi_note_num
+from .. sockets.mi_sockets import SOCKET_ING_TYPE, SOCKET_ATTR_TYPE, SOCKET_RECIPE_TYPE, SOCKET_TRIGGER_TYPE
 
 
 class NODE_MI_BL_MIDI_Trigger_Note(Node, MI_BL_Node):
@@ -126,16 +11,7 @@ class NODE_MI_BL_MIDI_Trigger_Note(Node, MI_BL_Node):
     bl_idname = 'NODE_MI_BL_MIDI_Trigger_Note'
     bl_label = 'MI Note Trigger'
 
-    trigger_type: EnumProperty(
-        name='',
-        items=(
-            ('0', "Name", ""),
-            ('1', "Octave", ""),
-            ('2', "Velocity", ""),
-            ('3', "All", ""),
-        ),
-        default='3'
-    )
+    _is_trigger_node = True
 
     note_name: EnumProperty(
         name='Note name',
@@ -158,9 +34,9 @@ class NODE_MI_BL_MIDI_Trigger_Note(Node, MI_BL_Node):
 
     octave_num: IntProperty(
         name='Octave #',
-        min=-1,
+        min=0,
         max=8,
-        soft_min=-1,
+        soft_min=0,
         soft_max=8,
         default=4
     )
@@ -178,34 +54,101 @@ class NODE_MI_BL_MIDI_Trigger_Note(Node, MI_BL_Node):
     )
 
     def init(self, context):
-        self.outputs.new('SOCKET_MI_BL_Midi_Recipe', "Trigger Recipe")
+        self.outputs.new(SOCKET_ING_TYPE, "Trigger")
 
     def draw_buttons(self, context, layout):
         mibl_props = context.scene.mibl
         row = layout.row()
 
-        layout.label(text="Trigger type :")
-        layout.prop(self, "trigger_type")
-
-        match self.trigger_type:
-            case '0':
-                layout.prop(self, "note_name")
-            case '1':
-                layout.prop(self, "octave_num")
-            case '2':
-                layout.prop(self, "vel")
-            case '3':
-                layout.prop(self, "note_name")
-                layout.prop(self, "octave_num")
-                layout.prop(self, "vel")
-            case _:
-                layout.prop(self, "note_name")
+        layout.prop(self, "note_name")
+        layout.prop(self, "octave_num")
+        layout.prop(self, "vel")
 
     def execute(self):
-        pass
+        trigger_name = f"{self.bl_rna.properties['note_name'].enum_items.get(self.note_name).name}{self.octave_num} CLICK"
+        midi_note = get_midi_note_num(int(self.note_name), self.octave_num)
+        midi_in = generate_midi_note_bang(midi_note, self.vel)
+        self.outputs[0].set_name(trigger_name)
+        self.outputs[0].set_value(midi_in, [], 1.0)
 
-    def update(self):
-        self.execute()
+
+class NODE_MI_BL_MIDI_Trigger_SpecialNote(Node, MI_BL_Node):
+    '''MiBl Note Trigger'''
+    bl_idname = 'NODE_MI_BL_MIDI_Trigger_SpecialNote'
+    bl_label = 'MI Special Note Trigger'
+
+    _is_trigger_node = True
+
+    note_name: EnumProperty(
+        name='Note name',
+        items=(
+            ('VPOT', "VPot Click", ""),
+            ('FADER', "Fader Touch", ""),
+        ),
+        default='VPOT'
+    )
+
+    channel_num: EnumProperty(
+        name='',
+        items=(
+            ('0', "Channel #1", ""),
+            ('1', "Channel #2", ""),
+            ('2', "Channel #3", ""),
+            ('3', "Channel #4", ""),
+            ('4', "Channel #5", ""),
+            ('5', "Channel #6", ""),
+            ('6', "Channel #7", ""),
+            ('7', "Channel #8", ""),
+        ),
+        default='0'
+    )
+
+    btn_state: EnumProperty(
+        name='Btn state',
+        items=(
+            ('ON', "On", ""),
+            ('OFF', "Off", ""),
+        ),
+        default='ON'
+    )
+
+    def init(self, context):
+        self.outputs.new(SOCKET_ING_TYPE, "Trigger")
+
+    def draw_buttons(self, context, layout):
+        mibl_props = context.scene.mibl
+        row = layout.row()
+
+        layout.prop(self, "note_name")
+        layout.prop(self, "channel_num")
+
+        if self.note_name == 'FADER':
+            layout.prop(self, "btn_state")
+
+    def execute(self):
+        note = 0x20
+        midi_in = []
+        trigger_name = ""
+        channel_name = str(int(self.channel_num)+1)
+
+        match self.note_name:
+            case "VPOT":
+                note = 0x20+int(self.channel_num)
+                midi_in = generate_midi_note_bang(note, 0)
+                trigger_name = f"PAN #{channel_name} CLICK"
+            case "FADER":
+                note = 0x68+int(self.channel_num)
+
+                match self.btn_state:
+                    case "ON":
+                        midi_in = [0x90, note, 0x00]
+                    case "OFF":
+                        midi_in = [0x80, note, 0x00]
+
+                trigger_name = f"FADER #{channel_name} {self.btn_state}"
+
+        self.outputs[0].set_name(trigger_name)
+        self.outputs[0].set_value(midi_in, [], 1.0)
 
 
 class NODE_MI_BL_MIDI_Trigger_Fader(Node, MI_BL_Node):
@@ -213,15 +156,7 @@ class NODE_MI_BL_MIDI_Trigger_Fader(Node, MI_BL_Node):
     bl_idname = 'NODE_MI_BL_MIDI_Trigger_Fader'
     bl_label = 'MI Fader Trigger'
 
-    trigger_type: EnumProperty(
-        name='',
-        items=(
-            ('0', "Fader #", ""),
-            ('1', "Fader Value", ""),
-            ('2', "All", ""),
-        ),
-        default='2'
-    )
+    _is_trigger_node = True
 
     fader_num: IntProperty(
         name='Fader #',
@@ -238,38 +173,25 @@ class NODE_MI_BL_MIDI_Trigger_Fader(Node, MI_BL_Node):
         max=1.0,
         soft_min=0.0,
         soft_max=1.0,
-        step=1,
-        subtype='FACTOR',
-        precision=2,
         default=0.5
     )
 
     def init(self, context):
-        self.outputs.new('SOCKET_MI_BL_Midi_Recipe', "Trigger Recipe")
+        self.outputs.new(SOCKET_ING_TYPE, "Trigger")
 
     def draw_buttons(self, context, layout):
         mibl_props = context.scene.mibl
         row = layout.row()
 
-        layout.label(text="Trigger type :")
-        layout.prop(self, "trigger_type")
-
-        match self.trigger_type:
-            case '0':
-                layout.prop(self, "fader_num")
-            case '1':
-                layout.prop(self, "fader_value")
-            case '2':
-                layout.prop(self, "fader_num")
-                layout.prop(self, "fader_value")
-            case _:
-                layout.prop(self, "fader_num")
+        layout.prop(self, "fader_num")
+        layout.prop(self, "fader_value")
 
     def execute(self):
-        pass
-
-    def update(self):
-        self.execute()
+        midi_fader_num = 0xE0 + (self.fader_num - 1)
+        midi_fader_value = int(round(self.fader_value * 127))
+        trigger_name = f"FADER #{str(self.fader_num)} SLIDE"
+        self.outputs[0].set_name(trigger_name)
+        self.outputs[0].set_value([midi_fader_num, 0x00, midi_fader_value], [], 0.0)
 
 
 class NODE_MI_BL_MIDI_Trigger_Pan(Node, MI_BL_Node):
@@ -277,15 +199,7 @@ class NODE_MI_BL_MIDI_Trigger_Pan(Node, MI_BL_Node):
     bl_idname = 'NODE_MI_BL_MIDI_Trigger_Pan'
     bl_label = 'MI Pan Trigger'
 
-    trigger_type: EnumProperty(
-        name='',
-        items=(
-            ('0', "Pan #", ""),
-            ('1', "Value", ""),
-            ('2', "All", ""),
-        ),
-        default='2'
-    )
+    _is_trigger_node = True
 
     pan_num: IntProperty(
         name='Pan #',
@@ -308,41 +222,130 @@ class NODE_MI_BL_MIDI_Trigger_Pan(Node, MI_BL_Node):
         default=0.0
     )
 
+    pan_mode: EnumProperty(
+        name='Pan mode',
+        items=(
+            ('NORMAL', "INCREASE", ""),
+            ('JAUGE', "JAUGE", ""),
+            ('FILL', "FILL", ""),
+            ('CENTER', "CENTER", ""),
+        ),
+        default='NORMAL'
+    )
+
     def init(self, context):
-        self.outputs.new('SOCKET_MI_BL_Midi_Recipe', "Trigger Recipe")
+        self.outputs.new(SOCKET_ING_TYPE, "Trigger")
 
     def draw_buttons(self, context, layout):
         mibl_props = context.scene.mibl
         row = layout.row()
 
-        layout.label(text="Trigger type :")
-        layout.prop(self, "trigger_type")
+        layout.prop(self, "pan_num")
 
-        match self.trigger_type:
-            case '0':
-                layout.prop(self, "pan_num")
-            case '1':
-                if self.pan_value > 0.0:
-                    layout.label(text="Pan left value :")
-                elif self.pan_value > 0.0:
-                    layout.label(text="Pan right value :")
-                else:
-                    layout.label(text="No panning")
-                layout.prop(self, "pan_value")
-            case '2':
-                layout.prop(self, "pan_num")
-                if self.pan_value > 0.0:
-                    layout.label(text="Pan left value :")
-                elif self.pan_value > 0.0:
-                    layout.label(text="Pan right value :")
-                else:
-                    layout.label(text="No panning")
-                layout.prop(self, "pan_value")
-            case _:
-                layout.prop(self, "pan_num")
+        if self.pan_value < 0.0:
+            layout.label(text="Pan left value :")
+        elif self.pan_value > 0.0:
+            layout.label(text="Pan right value :")
+        else:
+            layout.label(text="No panning")
+
+        layout.prop(self, "pan_value")
 
     def execute(self):
-        pass
+        midi_pan_num = 0x10 + (self.pan_num - 1)
+        midi_pan_value = 0x01
 
-    def update(self):
-        self.execute()
+        if self.pan_value < 0.0:
+            midi_pan_value = 0x41
+
+        trigger_name = f"PAN #{str(self.pan_num)}"
+
+        self.outputs[0].set_name(trigger_name)
+        self.outputs[0].set_value([0xB0, midi_pan_num, midi_pan_value], [], 0.0)
+
+
+class NODE_MI_BL_MIDI_Trigger_User_Buttons(Node, MI_BL_Node):
+    '''MiBl Trigger Buttons in the user space'''
+    bl_idname = 'NODE_MI_BL_MIDI_Trigger_Usr_Btns'
+    bl_label = 'MI User Button Trigger'
+
+    _is_trigger_node = True
+
+    def set_btn_enum(self, context):
+        items = ()
+        if self.channel_num == '8':
+            items = (
+                ('Flip', "Flip", ""),
+            )
+        else:
+            items = (
+                ('Rec', "Rec", ""),
+                ('Solo', "Solo", ""),
+                ('Mute', "Mute", ""),
+                ('Select', "Select", ""),
+            )
+
+        return items
+
+    channel_num: EnumProperty(
+        name='',
+        items=(
+            ('0', "Channel #1", ""),
+            ('1', "Channel #2", ""),
+            ('2', "Channel #3", ""),
+            ('3', "Channel #4", ""),
+            ('4', "Channel #5", ""),
+            ('5', "Channel #6", ""),
+            ('6', "Channel #7", ""),
+            ('7', "Channel #8", ""),
+            ('8', "Main", ""),
+        ),
+        default='0'
+    )
+
+    btn_name: EnumProperty(
+        name='Button',
+        items=set_btn_enum,
+    )
+
+    btn_state: EnumProperty(
+        name='State',
+        items=(
+            ('On', "On", ""),
+            ('Off', "Off", ""),
+        ),
+        default='On'
+    )
+
+    def init(self, context):
+        self.outputs.new(SOCKET_ING_TYPE, "Trigger")
+
+    def draw_buttons(self, context, layout):
+        row = layout.row()
+
+        layout.label(text="Channel num :")
+        layout.prop(self, "channel_num")
+
+        layout.prop(self, "btn_name")
+
+    def execute(self):
+        note = 0x00
+
+        match self.btn_name:
+            case 'Rec':
+                note = 0x00
+            case 'Solo':
+                note = 0x08
+            case 'Mute':
+                note = 0x10
+            case 'Select':
+                note = 0x18
+            case 'Flip':
+                note = 0x32
+
+        channel_name = str(int(self.channel_num)+1)
+        trigger_name = f"{self.btn_name} #{channel_name} CLICK"
+        midi_in = generate_midi_note_bang(note+int(self.channel_num), 0)
+
+        self.outputs[0].set_name(trigger_name)
+        self.outputs[0].set_value(midi_in, [], 1.0)

@@ -51,6 +51,7 @@ class NODE_MI_BL_set_attr(Node, MI_BL_Node):
         socket_type = socket_mapping.get(self.attribute_type)
 
         self.inputs.new('NodeSocketObject', "Object")
+        self.outputs.new('SOCKET_MI_BL_AttrLink', "Attr")
 
         if socket_type:
             self.inputs.new(socket_type, "Value")
@@ -61,9 +62,16 @@ class NODE_MI_BL_set_attr(Node, MI_BL_Node):
         layout.prop(self, "attribute_domain")
 
     def execute(self):
-        inputs = self.get_linked(self.inputs)
-        obj = inputs[0]
-        value = inputs[1]
+        input_vals = []
+
+        for input in self.inputs:
+            if input.is_linked:
+                input_vals.append(input.links[0].from_node.get_value())
+            else:
+                input_vals.append(input.default_value)
+
+        obj = input_vals[0]
+        value = input_vals[1]
 
         attr_handlers = {
             'FLOAT':
@@ -109,6 +117,3 @@ class NODE_MI_BL_set_attr(Node, MI_BL_Node):
                 data_type, prepare_data = handler
                 attr_data = prepare_data()
                 attr.data.foreach_set(data_type, attr_data)
-
-    def update(self):
-        self.execute()
