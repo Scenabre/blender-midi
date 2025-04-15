@@ -1,5 +1,6 @@
 from bpy.types import NodeTree
 from nodeitems_utils import NodeCategory
+from . mi_update import execute_active_node_tree
 
 TREE_NAME = 'MidiInteractiveTree'
 
@@ -15,9 +16,26 @@ class MI_BL_NodeTree(NodeTree):
     # Icon identifier
     bl_icon = 'LINK_BLEND'
 
+    _isMiNodetree = True
+    _node_out = None
+    _node_in = None
+
+    def get_node_out(self):
+        return self._node_out
+
+    def get_node_in(self):
+        return self._node_in
+
     def execute(self, context):
-        for node in self.nodes:
-            node.update()
+        self._node_out = self.nodes.get("MI Group Output", None)
+        self._node_in = self.nodes.get("MI Group Input", None)
+
+        if self._node_out is not None:
+            self._node_out.update()
+
+        if self._node_in is not None:
+            self._node_in.update()
+
         layer = context.view_layer
         layer.update()
 
@@ -25,16 +43,8 @@ class MI_BL_NodeTree(NodeTree):
 class MI_BL_Node:
     _isMiNode = True
     _index = -1
-
-    @classmethod
-    def get_linked(self, inputs):
-        ret_inputs = []
-        for input in inputs:
-            if input.is_linked:
-                ret_inputs.append(input.links[0].from_socket.default_value)
-            else:
-                ret_inputs.append(input.default_value)
-        return ret_inputs
+    _is_sys_node = False
+    _is_trigger_node = False
 
     @classmethod
     def poll(cls, ntree):
@@ -43,6 +53,10 @@ class MI_BL_Node:
     @classmethod
     def execute(self):
         pass
+
+    def update(self):
+        self.execute()
+        # execute_active_node_tree()
 
 
 class MI_BL_NodeCategory(NodeCategory):
@@ -57,3 +71,8 @@ class MI_BL_NodeCategory(NodeCategory):
 #         layout.separator()
 #         layout.operator("node.duplicate_move",
 #                          text="My new context menu item")
+
+# def update_prop(dself, context):
+#     print("Update prop")
+#     execute_active_node_tree()
+
