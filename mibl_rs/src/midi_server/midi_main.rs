@@ -2,12 +2,12 @@ use log::{error, info};
 use midir::MidiOutputConnection;
 
 use crate::midi_server::container::{
-    Event, ExtTrigger, Ingredient, InitDevice, RawMidi, Recipe, SIGflag,
+    DeviceState, Event, ExtTrigger, Ingredient, RawMidi, Recipe, SIGflag,
 };
 use crate::midi_server::midi_event::craft_recipe;
 use crate::midi_server::midi_process_mesg::{process_midi_mesg, CCflag};
 use crate::midi_server::midi_send_mesg::{
-    gen_lcd_string, initialize_mc_device, reset_mc_device, send_note_bang,
+    gen_lcd_string, initialize_mc_device, reset_mc_device, send_note_bang, timestamp_gen,
 };
 use crate::midi_server::setup_client_params::setup_client_params;
 use std::sync::mpsc::{channel, Sender};
@@ -17,10 +17,11 @@ use std::time::Duration;
 
 pub fn init_midi_audio(
     tx: Sender<Vec<ExtTrigger>>,
-    ext_signal: Sender<bool>,
+    ext_signal: Sender<DeviceState>,
     int_signal: Arc<Mutex<bool>>,
     recipe: Arc<Mutex<Recipe>>,
-    init_params: Arc<Mutex<InitDevice>>,
+    init_params: &DeviceState,
+    timestamp: Arc<Mutex<[usize; 4]>>,
 ) {
     match setup_client_params() {
         Ok(params) => {
@@ -37,112 +38,117 @@ pub fn init_midi_audio(
                 }
             };
 
-            sleep(Duration::from_millis(50));
+            sleep(Duration::from_millis(50)); // Wait a little time after creating connection output
 
-            match init_params.lock() {
-                Ok(init_params_lock) => {
-                    let init_mesgs: Vec<RawMidi> = initialize_mc_device(&init_params_lock).unwrap();
-                    info!("Sending all messages to midi device now…");
+            let init_mesgs: Vec<RawMidi> = initialize_mc_device(init_params).unwrap();
+            info!("Sending all messages to midi device now…");
 
-                    let init_mesgs_len = init_mesgs.len();
+            let init_mesgs_len = init_mesgs.len();
 
-                    for (idx, mesg) in init_mesgs.iter().enumerate() {
-                        info!(
-                            "Sending mesg {}/{} : {:04X?}",
-                            (idx + 1),
-                            init_mesgs_len,
-                            mesg.data()
-                        );
+            for (idx, mesg) in init_mesgs.iter().enumerate() {
+                info!(
+                    "Sending mesg {}/{} : {:04X?}",
+                    (idx + 1),
+                    init_mesgs_len,
+                    mesg.data()
+                );
 
-                        let _ = conn_out.send(mesg.data());
-                        sleep(Duration::from_millis(10));
-                    }
+                let _ = conn_out.send(mesg.data());
+                sleep(Duration::from_millis(10));
+            }
 
-                    let recipe_1: Option<Recipe> =
-                        match gen_lcd_string(0, Some("This is a test !".to_string())) {
-                            Ok(mesgs) => {
-                                let mut recipe: Ingredient = (vec![0x80, 0x18, 0x40], vec![], None);
-                                for mesg in mesgs {
+            let recipe_1: Option<Recipe> =
+                match gen_lcd_string(0, Some("This is a test !".to_string())) {
+                    Ok(mesgs) => {
+                        let mut recipe: Ingredient = (vec![0x80, 0x18, 0x40], vec![], None);
+                        for mesg in mesgs {
+                            recipe.1.push(mesg.data().to_vec());
+                        }
+                        match send_note_bang(0x18, 0) {
+                            Ok(raw_midi) => {
+                                for mesg in raw_midi {
                                     recipe.1.push(mesg.data().to_vec());
                                 }
-                                match send_note_bang(0x18, 0) {
-                                    Ok(raw_midi) => {
-                                        for mesg in raw_midi {
-                                            recipe.1.push(mesg.data().to_vec());
-                                        }
-                                    }
-                                    Err(err) => {
-                                        println!(
-                                            "Unable to generate note bang for recipe !  {}",
-                                            err
-                                        )
-                                    }
-                                }
-                                Some(vec![recipe])
                             }
                             Err(err) => {
-                                println!("Unable to create the recipe 1 : {}", err);
-                                None
+                                println!("Unable to generate note bang for recipe !  {}", err)
                             }
-                        };
+                        }
+                        Some(vec![recipe])
+                    }
+                    Err(err) => {
+                        println!("Unable to create the recipe 1 : {}", err);
+                        None
+                    }
+                };
 
-                    let triggers_events = match craft_recipe(&true, &recipe_1) {
-                        Ok(events) => events,
-                        Err(err) => panic!("Unable to create the trigger table ! {}", err),
-                    };
+            let triggers_events = match craft_recipe(&true, &recipe_1) {
+                Ok(events) => events,
+                Err(err) => panic!("Unable to create the trigger table ! {}", err),
+            };
 
-                    println!("Triggers Events : {:?}", triggers_events);
+            println!("Triggers Events : {:?}", triggers_events);
 
-                    info!("Initialization done!");
+            info!("Initialization done!");
 
-                    let (int_tx, int_rx) = channel();
-                    let sig_flag = Arc::new(Mutex::new(SIGflag::default()));
-                    let cc_flag = Arc::new(Mutex::new(CCflag::default()));
-                    let init_params_clone = init_params.clone();
+            let (int_tx, int_rx) = channel();
+            let sig_flag = Arc::new(Mutex::new(SIGflag::default()));
+            let cc_flag = Arc::new(Mutex::new(CCflag::default()));
+            let init_params_clone = init_params.clone();
 
-                    let _conn_in = params.midi_input.connect(
-                        &params.midi_input_port,
-                        "bl-midi-in",
-                        move |stamp, message, midi_datas| {
-                            input_callback(
-                                (&stamp, message),
-                                &midi_datas.0,
-                                &midi_datas.1,
-                                &midi_datas.2,
-                                &midi_datas.3,
-                                Some(&midi_datas.4),
-                                &midi_datas.5,
-                            );
-                        },
-                        (
-                            sig_flag.clone(),
-                            cc_flag.clone(),
-                            int_tx.clone(),
-                            tx,
-                            triggers_events,
-                            init_params_clone,
-                        ),
+            let _conn_in = params.midi_input.connect(
+                &params.midi_input_port,
+                "bl-midi-in",
+                move |stamp, message, midi_datas| {
+                    input_callback(
+                        (&stamp, message),
+                        &midi_datas.0,
+                        &midi_datas.1,
+                        &midi_datas.2,
+                        &midi_datas.3,
+                        Some(&midi_datas.4),
+                        &midi_datas.5,
                     );
+                },
+                (
+                    sig_flag.clone(),
+                    cc_flag.clone(),
+                    int_tx.clone(),
+                    tx,
+                    triggers_events,
+                    init_params_clone,
+                ),
+            );
 
-                    let stop_signal_arc = Arc::clone(&int_signal);
-                    let duration: u64 = 1;
+            let stop_signal_arc = Arc::clone(&int_signal);
+            let timestamp_arc = Arc::clone(&timestamp);
+            let fps = *init_params.get_fps();
 
-                    loop {
-                        if *stop_signal_arc.lock().unwrap() {
-                            return;
+            let duration: u64 = 1000 / fps;
+
+            loop {
+                if *stop_signal_arc.lock().unwrap() {
+                    return;
+                }
+
+                let timestamp = *timestamp_arc.lock().unwrap();
+                match timestamp_gen(timestamp[0], timestamp[1], timestamp[2], timestamp[3]) {
+                    Ok(raw_timestamp) => {
+                        for raw_midi in raw_timestamp {
+                            conn_out.send(raw_midi.data()).unwrap();
                         }
+                    }
+                    Err(err) => println!("Unable to generate timestamp, continue… {}", err),
+                }
 
-                        if let Ok(rx_data) = int_rx.try_recv() {
-                            for midi_data in rx_data {
-                                conn_out.send(&midi_data).unwrap();
-                            }
-                        }
-
-                        sleep(Duration::from_millis(duration));
+                if let Ok(rx_data) = int_rx.try_recv() {
+                    for midi_data in rx_data {
+                        conn_out.send(&midi_data).unwrap();
                     }
                 }
-                Err(e) => error!("{}", e),
-            };
+
+                sleep(Duration::from_millis(duration));
+            }
         }
         Err(err) => println!("Unable to initialize device, continue : {}", err),
     }
@@ -155,7 +161,7 @@ fn input_callback(
     int_tx: &Sender<Vec<Vec<u8>>>,
     ext_tx: &Sender<Vec<ExtTrigger>>,
     triggers: Option<&Vec<Event>>,
-    init_params: &Arc<Mutex<InitDevice>>,
+    init_params: &DeviceState,
 ) {
     let (stamp, mesg) = data_in;
     let raw_midi = RawMidi::new(*stamp, mesg).unwrap();
@@ -199,20 +205,11 @@ fn input_callback(
                 }
 
                 sleep(Duration::from_millis(100));
-                match init_params.lock() {
-                    Ok(init_params_lock) => {
-                        let init_mesgs: Vec<RawMidi> =
-                            initialize_mc_device(&init_params_lock).unwrap();
+                let init_mesgs: Vec<RawMidi> = initialize_mc_device(&init_params).unwrap();
 
-                        for mesg in init_mesgs.iter() {
-                            let _ = int_tx.send(vec![mesg.data().to_vec()]);
-                            sleep(Duration::from_millis(10));
-                        }
-                    }
-                    Err(err) => println!(
-                        "Unable to lock init parameters, abort Device initialization : {}",
-                        err
-                    ),
+                for mesg in init_mesgs.iter() {
+                    let _ = int_tx.send(vec![mesg.data().to_vec()]);
+                    sleep(Duration::from_millis(10));
                 }
             }
             Err(err) => println!("Unable to reset device : {}", err),
