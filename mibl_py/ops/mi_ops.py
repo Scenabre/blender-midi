@@ -5,21 +5,111 @@ from bpy.app import timers
 import functools
 import threading
 import queue
-
+from .. node_tree.mi_update import execute_active_node_tree
+    
 update_func = None
 mibl_rs = None
 mibl_thread = None
+
+SYS_EVENT_ARRAY = [
+    "EA_Track",
+    "EA_PAN",
+    "EA_EQ",
+    "EA_Send",
+    "EA_Plug_in",
+    "EA_Inst",
+    "DISP_Name_Value",
+    "DISP_SMPTE_Beats",
+    "VIEW_Global",
+    "VIEW_Midi_Tracks",
+    "VIEW_Inputs",
+    "VIEW_Audio_Tracks",
+    "VIEW_Audios_Inst",
+    "VIEW_Aux",
+    "VIEW_Buses",
+    "VIEW_Outputs",
+    "VIEW_User",
+    "FUNC_F1",
+    "FUNC_F2",
+    "FUNC_F3",
+    "FUNC_F4",
+    "FUNC_F5",
+    "FUNC_F6",
+    "FUNC_F7",
+    "FUNC_F8",
+    "MOD_Shift",
+    "MOD_Option",
+    "MOD_Ctrl",
+    "MOD_Alt",
+    "AUTO_Read_OFF",
+    "AUTO_Write",
+    "AUTO_Trim",
+    "AUTO_Touch",
+    "AUTO_Latch",
+    "AUTO_Group",
+    "UTILS_Save",
+    "UTILS_Undo",
+    "UTILS_Cancel",
+    "UTILS_Enter",
+    "TRANS_Marker",
+    "TRANS_Nudge",
+    "TRANS_Cycle",
+    "TRANS_Drop",
+    "TRANS_Replace",
+    "TRANS_Click",
+    "TRANS_Solo",
+    "TRANS_Prev",
+    "TRANS_Next",
+    "TRANS_Stop",
+    "TRANS_Play",
+    "TRANS_Rec",
+    "SWITCH_Flip",
+    "SWITCH_Fader_Bank_Prev",
+    "SWITCH_Fader_Bank_Next",
+    "SWITCH_Channel_Prev",
+    "SWITCH_Channel_Next",
+    "PAD_Up",
+    "PAD_Down",
+    "PAD_Left",
+    "PAD_Right",
+    "PAD_Zoom",
+    "TRANS_Scrub",
+    "TRANS_Wheel",
+    "LED_SMPTE",
+    "LED_Beats",
+    "LED_Solo",
+]
+
+
+def gen_timestamp(fps, curr_frame):
+    hours = int(curr_frame / (3600*fps))
+    minutes = int(curr_frame / (60*fps) % 60)
+    seconds = int(curr_frame / fps % 60)
+    frames = curr_frame % fps
+
+    return [hours, minutes, seconds, frames]
 
 
 def update_midi_value(context):
     global mibl_rs
     scene = context.scene
-    # scene.mibl.mi_input_mesg = mibl_rs.get_rx_data()
-    sys_signals = mibl_rs.get_sys_signals()
-    print("Blender get value from thread :", sys_signals)
 
-    for idx, signal in enumerate(sys_signals):
-        print("Sys signal found : ", signal)
+    sys_signals = mibl_rs.get_triggers()
+    fps = scene.render.fps
+    curr_frame = scene.frame_current
+
+    hours, minutes, seconds, frames = gen_timestamp(fps, curr_frame)
+    print(f"Timestamp : {hours}:{minutes}:{seconds}.{frames}")
+
+    mibl_rs.set_fps(fps)
+    mibl_rs.set_timestamp(hours, minutes, seconds, frames)
+
+    if len(sys_signals) > 0:
+        for idx, signal in enumerate(sys_signals):
+            print("Sys signal found : ", signal[sys_signals[1]])
+            print("Sys signal value found : ", signal[sys_signals[2]])
+
+    execute_active_node_tree()
 
 
     # TRANSPORT
@@ -36,7 +126,7 @@ def update_midi_value(context):
     # bpy.ops.wm.save_mainfile()
     # bpy.ops.ed.undo()
 
-    return 1.0  # update interval 1s
+    return 0.2  # update interval 1s
 
 
 class MI_BL_OT_update_server_state(Operator):
