@@ -1,15 +1,17 @@
-use log::{error, info};
+use log::{error, info, warn};
 use midir::MidiOutputConnection;
+use rand::seq::IndexedRandom;
 
 use crate::midi_server::container::{
-    DeviceState, Event, ExtTrigger, Ingredient, RawMidi, Recipe, SIGflag,
+    CCflag, DeviceState, Event, ExtTrigger, RawMidi, Recipe, SIGflag,
 };
 use crate::midi_server::midi_event::craft_recipe;
-use crate::midi_server::midi_process_mesg::{process_midi_mesg, CCflag};
+use crate::midi_server::midi_process_mesg::process_midi_mesg;
 use crate::midi_server::midi_send_mesg::{
     gen_lcd_string, initialize_mc_device, reset_mc_device, send_note_bang, timestamp_gen,
 };
 use crate::midi_server::setup_client_params::setup_client_params;
+use std::clone;
 use std::sync::mpsc::{channel, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
@@ -20,8 +22,8 @@ pub fn init_midi_audio(
     ext_signal: Sender<DeviceState>,
     int_signal: Arc<Mutex<bool>>,
     recipe: Arc<Mutex<Recipe>>,
-    init_params: &DeviceState,
-    timestamp: Arc<Mutex<[usize; 4]>>,
+    use_sys_event: Arc<Mutex<bool>>,
+    device_params: Arc<Mutex<DeviceState>>,
 ) {
     match setup_client_params() {
         Ok(params) => {
@@ -40,7 +42,21 @@ pub fn init_midi_audio(
 
             sleep(Duration::from_millis(50)); // Wait a little time after creating connection output
 
-            let init_mesgs: Vec<RawMidi> = initialize_mc_device(init_params).unwrap();
+            let mut init_mesgs: Vec<RawMidi>;
+
+            match device_params.lock() {
+                Ok(device_params_lock) => {
+                    init_mesgs = initialize_mc_device(&device_params_lock).unwrap();
+                }
+                Err(err) => {
+                    println!(
+                        "Unable to access device state for initialization, closing thread : {}",
+                        err
+                    );
+                    return;
+                }
+            }
+
             info!("Sending all messages to midi device now…");
 
             let init_mesgs_len = init_mesgs.len();
@@ -57,44 +73,31 @@ pub fn init_midi_audio(
                 sleep(Duration::from_millis(10));
             }
 
-            let recipe_1: Option<Recipe> =
-                match gen_lcd_string(0, Some("This is a test !".to_string())) {
-                    Ok(mesgs) => {
-                        let mut recipe: Ingredient = (vec![0x80, 0x18, 0x40], vec![], None);
-                        for mesg in mesgs {
-                            recipe.1.push(mesg.data().to_vec());
-                        }
-                        match send_note_bang(0x18, 0) {
-                            Ok(raw_midi) => {
-                                for mesg in raw_midi {
-                                    recipe.1.push(mesg.data().to_vec());
-                                }
-                            }
-                            Err(err) => {
-                                println!("Unable to generate note bang for recipe !  {}", err)
-                            }
-                        }
-                        Some(vec![recipe])
-                    }
-                    Err(err) => {
-                        println!("Unable to create the recipe 1 : {}", err);
-                        None
-                    }
-                };
+            let recipe = recipe.lock().unwrap().clone();
+            let mut opt_recipe = None;
+            let use_sys_event = use_sys_event.lock().unwrap();
 
-            let triggers_events = match craft_recipe(&true, &recipe_1) {
+            if !recipe.is_empty() {
+                opt_recipe = Some(&recipe);
+            }
+
+            let triggers_events = match craft_recipe(&use_sys_event, opt_recipe) {
                 Ok(events) => events,
                 Err(err) => panic!("Unable to create the trigger table ! {}", err),
             };
+
+            drop(recipe);
+            drop(use_sys_event);
 
             println!("Triggers Events : {:?}", triggers_events);
 
             info!("Initialization done!");
 
             let (int_tx, int_rx) = channel();
-            let sig_flag = Arc::new(Mutex::new(SIGflag::default()));
-            let cc_flag = Arc::new(Mutex::new(CCflag::default()));
-            let init_params_clone = init_params.clone();
+            let sig_flag = Arc::new(Mutex::new(SIGflag {
+                debug: false,
+                ..Default::default()
+            }));
 
             let _conn_in = params.midi_input.connect(
                 &params.midi_input_port,
@@ -105,24 +108,23 @@ pub fn init_midi_audio(
                         &midi_datas.0,
                         &midi_datas.1,
                         &midi_datas.2,
-                        &midi_datas.3,
-                        Some(&midi_datas.4),
-                        &midi_datas.5,
+                        Some(&midi_datas.3),
+                        &midi_datas.4,
                     );
                 },
                 (
                     sig_flag.clone(),
-                    cc_flag.clone(),
                     int_tx.clone(),
                     tx,
                     triggers_events,
-                    init_params_clone,
+                    device_params.clone(),
                 ),
             );
 
             let stop_signal_arc = Arc::clone(&int_signal);
-            let timestamp_arc = Arc::clone(&timestamp);
-            let fps = *init_params.get_fps();
+            let device_params_lock = device_params.lock().unwrap();
+            let fps = *device_params_lock.get_fps();
+            drop(device_params_lock);
 
             let duration: u64 = 1000 / fps;
 
@@ -131,7 +133,7 @@ pub fn init_midi_audio(
                     return;
                 }
 
-                let timestamp = *timestamp_arc.lock().unwrap();
+                let timestamp = *device_params.lock().unwrap().get_timestamp();
                 match timestamp_gen(timestamp[0], timestamp[1], timestamp[2], timestamp[3]) {
                     Ok(raw_timestamp) => {
                         for raw_midi in raw_timestamp {
@@ -157,18 +159,27 @@ pub fn init_midi_audio(
 fn input_callback(
     data_in: (&u64, &[u8]),
     sigflag: &Arc<Mutex<SIGflag>>,
-    ccflag: &Arc<Mutex<CCflag>>,
     int_tx: &Sender<Vec<Vec<u8>>>,
     ext_tx: &Sender<Vec<ExtTrigger>>,
     triggers: Option<&Vec<Event>>,
-    init_params: &DeviceState,
+    device_params: &Arc<Mutex<DeviceState>>,
 ) {
     let (stamp, mesg) = data_in;
     let raw_midi = RawMidi::new(*stamp, mesg).unwrap();
     let mut sig_flag = sigflag.lock().unwrap();
-    let mut cc_flag = ccflag.lock().unwrap();
 
-    int_tx.send(vec![mesg.to_vec()]).unwrap();
+    if mesg[0] == 0x90 {
+        sig_flag.note_on = true;
+        sig_flag.note_bang_value = mesg[1];
+    } else if sig_flag.note_on && mesg[0] == 0x80 && mesg[1] == sig_flag.note_bang_value {
+        int_tx.send(vec![mesg.to_vec()]).unwrap();
+        sig_flag.note_bang = true;
+    } else {
+        int_tx.send(vec![mesg.to_vec()]).unwrap();
+        //sig_flag.note_on = false;
+        //sig_flag.note_bang = false;
+        //sig_flag.note_bang_value = 0;
+    }
 
     if mesg[0] == 0x80 && mesg[1] == 0x52 {
         if !sig_flag.reset_signal {
@@ -205,7 +216,14 @@ fn input_callback(
                 }
 
                 sleep(Duration::from_millis(100));
-                let init_mesgs: Vec<RawMidi> = initialize_mc_device(&init_params).unwrap();
+                let mut init_mesgs: Vec<RawMidi> = vec![];
+
+                match device_params.lock() {
+                    Ok(device_params_lock) => {
+                        init_mesgs = initialize_mc_device(&device_params_lock).unwrap()
+                    }
+                    Err(err) => println!("Unable to lock device state skip device reset : {}", err),
+                }
 
                 for mesg in init_mesgs.iter() {
                     let _ = int_tx.send(vec![mesg.data().to_vec()]);
@@ -219,7 +237,7 @@ fn input_callback(
         sig_flag.reset_signal = false;
     }
 
-    let midi_result = process_midi_mesg(&raw_midi, "MC", &mut cc_flag, triggers);
+    let midi_result = process_midi_mesg(&raw_midi, "MC", &mut sig_flag, triggers);
 
     match midi_result {
         Ok(mesgs) => {
