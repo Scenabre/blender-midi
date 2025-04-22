@@ -1,4 +1,5 @@
 import bpy
+import hashlib
 from bpy.types import Node
 from .. node_tree.mi_node_tree import MI_BL_Node
 
@@ -9,6 +10,7 @@ class NODE_MI_BL_group_output(Node, MI_BL_Node):
 
     _sys_data = None
     _recipe = None
+    _recipe_footprint = None
 
     def init(self, context):
         self.inputs.new(
@@ -38,6 +40,7 @@ class NODE_MI_BL_group_output(Node, MI_BL_Node):
         # current_triggers = list(mibl_props.mi_trigger_list)
         self._sys_data = None
         self._recipe = None
+        self._recipe_footprint = None
         collector = []
 
         system_link = self.inputs[0]
@@ -49,7 +52,7 @@ class NODE_MI_BL_group_output(Node, MI_BL_Node):
         for idx, link in enumerate(links):
             if link.is_linked:
                 linked_node = link.links[0]
-                print("Get value from : ", linked_node.from_node.name)
+                # print("Get value from : ", linked_node.from_node.name)
                 linked_node.from_node.update()
                 node_value = linked_node.from_socket.get_value()
                 collector.append(node_value)
@@ -62,16 +65,17 @@ class NODE_MI_BL_group_output(Node, MI_BL_Node):
             linked_node = attr_link.links[0]
             linked_node.from_node.update()
 
-        # for item in collector:
-        #     for values in item:
-        #         print(list(values))
+        if self._recipe is not None:
+            recipe_str = ""
 
-        # while len(active_inputs) < 16:
-        #     active_inputs.append(0)
+            for ing in self._recipe:
+                recipe_str += ing.name
 
-        # mibl_props.mi_midi_channel = active_inputs
-        # scene = bpy.context.scene
-        # inputs = self.get_linked(self.inputs)
-        #
-        # if inputs:
-        #     inputs[0] = scene.mibl.mi_output_mesg
+            self._recipe_hash = hashlib.md5(recipe_str).hexdigest()
+
+            mibl_props = bpy.context.scene.mibl
+
+            if mibl_props.mi_recipe_footprint != self._recipe_footprint:
+                print("Update recipe !")
+                mibl_props.mi_recipe_need_update = True
+                mibl_props.mi_recipe_footprint = self._recipe_footprint
