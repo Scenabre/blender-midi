@@ -13,6 +13,11 @@ import importlib
 import datetime
 import faulthandler
 from bpy.app import timers
+from bpy.types import AddonPreferences
+
+# class ModuleAPrefs(AddonPreferences):
+#     bl_idname = __name__
+#     # Put your module A preferences here
 
 
 def install_mibllib():
