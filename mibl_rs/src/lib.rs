@@ -17,7 +17,8 @@ struct MiBlRustProcessInner {
     rx_triggers: Vec<ExtTrigger>,
     close_thread: bool,
     use_sysevent: bool,
-    recipes: Recipe,
+    recipe: Recipe,
+    recipe_need_update: bool,
     device_state: DeviceState,
 }
 
@@ -28,7 +29,8 @@ impl MiBlRustProcessInner {
             rx_triggers: Vec::new(),
             close_thread: false,
             use_sysevent: true,
-            recipes: Recipe::new(),
+            recipe: Recipe::new(),
+            recipe_need_update: true,
             device_state: DeviceState::default(),
         }
     }
@@ -66,6 +68,19 @@ impl MiBlRustProcess {
         self.inner.lock().expect("lock not poisoned").close_thread
     }
 
+    fn get_sysevent(&self) -> bool {
+        self.inner.lock().expect("lock not poisoned").use_sysevent
+    }
+
+    fn get_fps(&self) -> u64 {
+        *self
+            .inner
+            .lock()
+            .expect("lock not poisoned")
+            .device_state
+            .get_fps()
+    }
+
     fn set_fps(&self, fps: u64) {
         self.inner
             .lock()
@@ -84,12 +99,33 @@ impl MiBlRustProcess {
     }
 
     fn set_timestamp(&self, hours: usize, minutes: usize, seconds: usize, frames: usize) {
-        println!("Setting timestamp…");
         self.inner
             .lock()
             .expect("lock not poisoned")
             .device_state
             .set_timestamp(hours, minutes, seconds, frames);
+    }
+
+    fn set_recipe(&self, recipe: Recipe) {
+        self.inner.lock().expect("lock not poisoned").recipe = recipe;
+    }
+
+    fn get_recipe(&self) -> Recipe {
+        self.inner.lock().expect("lock not poisoned").recipe.clone()
+    }
+
+    fn get_recipe_need_update(&self) -> bool {
+        self.inner
+            .lock()
+            .expect("lock not poisoned")
+            .recipe_need_update
+    }
+
+    fn set_recipe_need_update(&self, update: bool) {
+        self.inner
+            .lock()
+            .expect("lock not poisoned")
+            .recipe_need_update = update
     }
 
     fn mi_start_server_allow_thread(&self, py: Python) {
@@ -101,15 +137,26 @@ fn mi_start_server(mibl: &MiBlRustProcess) {
     let (tx_channel_rx, rx_channel_rx) = channel::<Vec<ExtTrigger>>();
     let (tx_channel_tx, rx_channel_tx) = channel::<Vec<ExtTrigger>>();
     let (tx_device_state, rx_device_state) = channel::<DeviceState>();
+
     let int_signal_arc = Arc::new(Mutex::new(false));
     let int_signal_arc_clone = Arc::clone(&int_signal_arc);
-    let recipes_arc = Arc::new(Mutex::new(Recipe::new()));
-    let init_params = DeviceState::default();
 
-    let timestamp_arc = Arc::new(Mutex::new([0; 4]));
-    let timestamp_arc_clone = Arc::clone(&timestamp_arc);
+    let recipe_arc = Arc::new(Mutex::new(Recipe::new()));
+    let recipe_arc_clone = Arc::clone(&recipe_arc);
 
-    let mut last_stamp = 0;
+    let use_sysevent = Arc::new(Mutex::new(true));
+    let use_sysevent_clone = Arc::clone(&use_sysevent);
+
+    let orig_device_state = mibl
+        .inner
+        .lock()
+        .expect("lock not poisoned")
+        .device_state
+        .clone();
+
+    let device_state = Arc::new(Mutex::new(orig_device_state.clone()));
+    drop(orig_device_state);
+    let device_state_clone = Arc::clone(&device_state);
 
     let midi_audio_thread = spawn(move || {
         let sender_tx = tx_channel_rx.clone();
@@ -119,17 +166,31 @@ fn mi_start_server(mibl: &MiBlRustProcess) {
             sender_tx,
             sender_device_state,
             int_signal_arc_clone,
-            recipes_arc,
-            &init_params.clone(),
-            timestamp_arc_clone,
+            recipe_arc_clone,
+            use_sysevent_clone,
+            device_state_clone,
         );
     });
 
     loop {
         let ext_signal = mibl.get_close_signal();
         let timestamp_py = mibl.get_timestamp();
+        let fps = mibl.get_fps();
 
-        *timestamp_arc.lock().unwrap() = timestamp_py;
+        if mibl.get_recipe_need_update() {
+            *recipe_arc.lock().unwrap() = mibl.get_recipe();
+            *use_sysevent.lock().unwrap() = mibl.get_sysevent();
+            mibl.set_recipe_need_update(false);
+        }
+
+        device_state.lock().unwrap().set_timestamp(
+            timestamp_py[0],
+            timestamp_py[1],
+            timestamp_py[2],
+            timestamp_py[3],
+        );
+
+        device_state.lock().unwrap().set_fps(fps);
 
         if ext_signal {
             *int_signal_arc.lock().unwrap() = true;
@@ -248,6 +309,11 @@ fn mibl_map_range(
     node_utils::math::map_range(value, from_min, from_max, to_min, to_max, clamp)
 }
 
+#[pyfunction]
+fn mibl_get_event_by_index(idx: usize) -> Option<(u8, String)> {
+    node_utils::sys_event::get_event_by_index(idx)
+}
+
 /// A Python module implemented in Rust. The name of this function must match
 /// the `lib.name` setting in the `Cargo.toml`, else Python will not be able to
 /// import the module.
@@ -273,5 +339,6 @@ fn mibllib(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(mibl_le, m)?)?;
     m.add_function(wrap_pyfunction!(mibl_ge, m)?)?;
     m.add_function(wrap_pyfunction!(mibl_map_range, m)?)?;
+    m.add_function(wrap_pyfunction!(mibl_get_event_by_index, m)?)?;
     Ok(())
 }
