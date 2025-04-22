@@ -7,9 +7,40 @@ pub type WaitData = (u64, Vec<Vec<u8>>);
 pub type TriggerResult = (Option<Vec<RawMidi>>, Option<Vec<ExtTrigger>>);
 
 #[derive(Debug, Clone, Copy, Default)]
+pub struct CCflag {
+    pub cc_lsb_flag: bool,
+    pub cc_channel: u8,
+    pub cc_num: u8,
+    pub cc_msb_value: u8,
+    pub cc_note: u8,
+}
+
+impl CCflag {
+    pub fn new(
+        cc_lsb_flag: bool,
+        cc_channel: u8,
+        cc_num: u8,
+        cc_msb_value: u8,
+        cc_note: u8,
+    ) -> Self {
+        Self {
+            cc_lsb_flag,
+            cc_channel,
+            cc_num,
+            cc_msb_value,
+            cc_note,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
 pub struct SIGflag {
     pub reset_signal: bool,
-    pub bang_signal: bool,
+    pub note_on: bool,
+    pub note_bang: bool,
+    pub note_bang_value: u8,
+    pub cc_flag: CCflag,
+    pub debug: bool,
 }
 
 #[derive(Clone)]
@@ -104,24 +135,26 @@ impl Default for RawMidi {
 
 #[derive(Clone)]
 pub struct Event {
-    index: u8,
+    index: u64,
     name: String,
     mesg_in: Vec<u8>,
     mesg_out: Option<Vec<Vec<u8>>>,
     ext_value_out: Option<f32>,
     mod_rule: u8,            // 0 in->out, 1 in+x = out, 2 in-x = out,
     mod_amount: Option<f32>, // Increase/Descrease by
+    note_bang: bool,
 }
 
 impl Event {
     pub fn new(
-        index: u8,
+        index: u64,
         name: String,
         mesg_in: Vec<u8>,
         mesg_out: Option<Vec<Vec<u8>>>,
         ext_value_out: Option<f32>,
         mod_rule: u8,
         mod_amount: Option<f32>,
+        note_bang: bool,
     ) -> Result<Event, String> {
         if mod_rule <= 2 {
             Ok(Self {
@@ -132,13 +165,14 @@ impl Event {
                 ext_value_out,
                 mod_rule,
                 mod_amount,
+                note_bang,
             })
         } else {
             Err("mod_rule must be one of the following value : 0,1,2".to_string())
         }
     }
 
-    pub fn get_index(&self) -> &u8 {
+    pub fn get_index(&self) -> &u64 {
         &self.index
     }
 
@@ -168,6 +202,10 @@ impl Event {
     pub fn get_val_out(&self) -> Option<f32> {
         self.ext_value_out
     }
+
+    pub fn get_bang_signal(&self) -> bool {
+        self.note_bang
+    }
 }
 
 impl Default for Event {
@@ -180,6 +218,7 @@ impl Default for Event {
             ext_value_out: None,
             mod_rule: 0,
             mod_amount: None,
+            note_bang: false,
         }
     }
 }
@@ -201,10 +240,11 @@ impl std::fmt::Debug for Event {
         };
         write!(
             f,
-            "Midi Event #{} {} : \n Wait for : {:?}, Send : {{ {:?} }} following rule : {} by amount : {}{:?} \n Sending to client : {:?}",
+            "Midi Event #{} {} : \n Wait for : {:?} (note_bang : {}), Send : {{ {:?} }} following rule : {} by amount : {}{:?} \n Sending to client : {:?}",
             self.index+1,
             self.name,
             self.mesg_in,
+            self.note_bang,
             self.mesg_out,
             rule,
             amount,
@@ -334,3 +374,28 @@ impl std::fmt::Debug for DeviceState {
         )
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct MidiMesg {
+    pub channel: u8,
+    pub name: String,
+    pub value: f32,
+}
+
+impl MidiMesg {
+    pub fn new() -> Self {
+        Self {
+            channel: 0,
+            name: "".to_string(),
+            value: 0.0,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct MidiProcess {
+    pub debug: Option<MidiMesg>,
+    pub to_send: TriggerResult,
+}
+
+pub type MidiResult = Result<MidiProcess, &'static str>;
