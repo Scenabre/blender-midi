@@ -10,7 +10,7 @@ cd mibl_py
 addon_id=$(grep -m 1 id blender_manifest.toml | cut -d '=' -f 2 | tr -d '"' | tr -d ' ')
 addon_version=$(grep -m 1 version blender_manifest.toml | cut -d '=' -f 2 | tr -d '"' | tr -d ' ')
 
-if [ $2 = "-f" ]; then
+if [ $# -eq 2 ] && [ $2 = "-f" ]; then
   source /home/lynerlok/.pyenv/versions/py_env/bin/activate
   cd ../mibl_rs
   maturin build
