@@ -13,7 +13,7 @@ pub fn process_midi_mesg(
     event: &RawMidi,
     protocole: &str,
     sig_flag: &mut SIGflag,
-    triggers: Option<&Vec<Event>>,
+    triggers: &Option<Vec<Event>>,
 ) -> MidiResult {
     // CHANNEL VOICE MESG
     // Command  Meaning      # parameters  param 1      param 2
