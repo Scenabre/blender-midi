@@ -19,7 +19,10 @@ const CHROM_RANGE: [&str; 12] = [
 // 0xE0      Pitch bend  2              lsb (7 bits) msb (7 bits)
 // 0xF0     (non-musical commands)
 
-pub fn craft_recipe(use_sys: &bool, custom_events: Option<&Recipe>) -> Result<Vec<Event>, String> {
+pub fn craft_recipe(
+    use_sys: &bool,
+    custom_events: Option<&Recipe>,
+) -> Result<Option<Vec<Event>>, String> {
     let mut events: Vec<Event> = Vec::new();
     let mut event_idx: u64 = 0;
 
@@ -221,11 +224,13 @@ pub fn craft_recipe(use_sys: &bool, custom_events: Option<&Recipe>) -> Result<Ve
         //for (idx, event) in events.iter().enumerate() {
         //    println!("---- \n Event #{} \n {:?} \n ----", idx, event);
         //}
-    } else {
-        println!("No custom events ;)");
     }
 
-    Ok(events)
+    if !(*use_sys) && events.is_empty() {
+        return Ok(None);
+    }
+
+    Ok(Some(events))
 }
 
 pub fn get_note_name(note: u8) -> &'static str {
