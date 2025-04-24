@@ -48,44 +48,43 @@ class NODE_MI_BL_group_input(Node, MI_BL_Node):
                     self._triggers.append(socket_name)
 
     def init(self, context):
-        node_out = self.id_data.get_node_out()
         self._triggers = []
 
-        if node_out is not None:
-            recipe = node_out.get_recipe()
+        mibl_props = bpy.context.scene.mibl
+        recipe = mibl_props.mi_recipe
 
-            if recipe is not None:
-                trigger_list = recipe.ingredients
+        trigger_list = recipe.ingredients
 
-                if len(trigger_list) == 0:
-                    self.clean_outputs(None)
-                    self.outputs.new(SOCKET_VOID_TYPE, "")
-                    return
+        if len(trigger_list) == 0:
+            self.clean_outputs(None)
+            self.outputs.new(SOCKET_VOID_TYPE, "")
+            return
 
-                self.clean_outputs(trigger_list)
-                self.create_outputs(trigger_list)
-                return
-
-        self.clean_outputs(None)
-        self.outputs.new(SOCKET_VOID_TYPE, "")
+        self.clean_outputs(trigger_list)
+        self.create_outputs(trigger_list)
 
     def execute(self):
-        node_out = self.id_data.get_node_out()
+        mibl_props = bpy.context.scene.mibl
+        recipe = mibl_props.mi_recipe
 
-        if node_out is not None:
-            recipe = node_out.get_recipe()
+        trigger_list = recipe.ingredients
 
-            if recipe is not None:
-                trigger_list = recipe.ingredients
+        if len(trigger_list) == 0:
+            self.clean_outputs(None)
+            self.outputs.new(SOCKET_VOID_TYPE, "")
+            return
 
-                if len(trigger_list) == 0:
-                    self.clean_outputs(None)
-                    self.outputs.new(SOCKET_VOID_TYPE, "")
-                    return
+        self.clean_outputs(trigger_list)
+        self.create_outputs(trigger_list)
 
-                self.clean_outputs(trigger_list)
-                self.create_outputs(trigger_list)
-                return
+        if mibl_props.mi_trigger_update:
+            trigger_name = trigger_list[mibl_props.mi_trigger.idx].ing_name
 
-        self.clean_outputs(None)
-        self.outputs.new(SOCKET_VOID_TYPE, "")
+            if trigger_name in self.outputs:
+                self.outputs[trigger_name].default_value = mibl_props.mi_trigger.value
+
+            for output in self.outputs:
+                print(output.name)
+                print(output.default_value)
+
+            mibl_props.mi_trigger_update = False

@@ -59,11 +59,8 @@ class NODE_MI_BL_group_output(Node, MI_BL_Node):
             self._sys_data = collector[0]
             self._recipe = collector[1]
 
-        if attr_link.is_linked:
-            linked_node = attr_link.links[0]
-            linked_node.from_node.update()
-
         if self._recipe is not None:
+            node_in = self.id_data.get_node_in()
             recipe_str = ""
 
             for (idx, ing) in enumerate(self._recipe.ingredients):
@@ -76,7 +73,7 @@ class NODE_MI_BL_group_output(Node, MI_BL_Node):
             # print("Saved footprint : ", mibl_props.mi_recipe_footprint)
 
             if mibl_props.mi_recipe_footprint != self._recipe_footprint:
-                print("Update recipe !")
+                print("Update recipe from python")
                 if self._recipe_footprint is not None:
                     mibl_props.mi_recipe.clean_ingredients()
 
@@ -93,3 +90,10 @@ class NODE_MI_BL_group_output(Node, MI_BL_Node):
 
                     mibl_props.mi_recipe_need_update = True
                     mibl_props.mi_recipe_footprint = self._recipe_footprint
+
+            if node_in is not None:
+                node_in.update()
+
+            if attr_link.is_linked:
+                linked_node = attr_link.links[0]
+                linked_node.from_node.update()

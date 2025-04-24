@@ -66,7 +66,7 @@ class NODE_MI_BL_set_attr(Node, MI_BL_Node):
 
         for input in self.inputs:
             if input.is_linked:
-                input_vals.append(input.links[0].from_node.get_value())
+                input_vals.append(input.links[0].from_socket.default_value)
             else:
                 input_vals.append(input.default_value)
 

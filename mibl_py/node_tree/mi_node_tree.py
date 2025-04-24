@@ -33,9 +33,6 @@ class MI_BL_NodeTree(NodeTree):
         if self._node_out is not None:
             self._node_out.update()
 
-        if self._node_in is not None:
-            self._node_in.update()
-
         layer = context.view_layer
         layer.update()
 

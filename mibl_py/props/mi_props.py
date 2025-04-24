@@ -38,8 +38,8 @@ class MI_BL_Recipe(PropertyGroup):
 
 
 class MI_BL_TriggerProp(PropertyGroup):
-    triggerIdx: IntProperty()
-    triggerValue: FloatProperty()
+    idx: IntProperty()
+    value: FloatProperty()
 
 
 class MI_BL_LcdParams(PropertyGroup):
@@ -121,10 +121,14 @@ class PropsMiBl(PropertyGroup):
         description="Toggle Mackie Device system control",
         default=True
     )
-    mi_trigger_list: CollectionProperty(
-        name="mi_trigger_list",
+    mi_trigger: PointerProperty(
+        name="mi_trigger",
         description="Trigger from recipe",
         type=MI_BL_TriggerProp,
+    )
+    mi_trigger_update: BoolProperty(
+        name="mi_trigger_update",
+        description="A signal to update trigger value in input node"
     )
     mi_recipe: PointerProperty(
         name="mi_recipe",
@@ -135,9 +139,11 @@ class PropsMiBl(PropertyGroup):
     )
     mi_recipe_need_update: BoolProperty(
         name="mi_recipe_need_update",
-        description="Send recipe update signal to server"
+        description="Send recipe update signal to server",
+        default=False
     )
     mi_recipe_footprint: StringProperty(
         name="mi_recipe_footprint",
-        description="The hash value of the recipe"
+        description="The hash value of the recipe",
+        default=""
     )
