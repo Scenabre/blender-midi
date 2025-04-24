@@ -1,3 +1,7 @@
+use std::vec;
+
+use rand::seq::IndexedRandom;
+
 use crate::midi_server::container::{Event, MidiMesg, Recipe};
 use crate::midi_server::sys_event::SYS_EVENT_ARRAY;
 use crate::node_utils::sys_event::convert_half;
@@ -30,6 +34,71 @@ pub fn craft_recipe(
         for (idx, (value, name)) in SYS_EVENT_ARRAY.iter().enumerate() {
             event_idx = idx as u64;
             let tmp_events = match *value {
+                0x5B => {
+                    vec![Event::new(
+                        event_idx,
+                        name.to_string(),
+                        vec![0x90, *value, 0x7F, 0x80, *value, 0x00],
+                        Some(vec![vec![0x90, *value, 0x00], vec![0x90, 0x5E, 0x00]]),
+                        Some(1.0),
+                        0,
+                        None,
+                        true,
+                        false,
+                    )]
+                }
+                0x5C => {
+                    vec![Event::new(
+                        event_idx,
+                        name.to_string(),
+                        vec![0x90, *value, 0x7F, 0x80, *value, 0x00],
+                        Some(vec![vec![0x90, *value, 0x00], vec![0x90, 0x5E, 0x00]]),
+                        Some(1.0),
+                        0,
+                        None,
+                        true,
+                        false,
+                    )]
+                }
+                0x5D => {
+                    vec![Event::new(
+                        event_idx,
+                        name.to_string(),
+                        vec![0x90, *value, 0x7F, 0x80, *value, 0x00],
+                        Some(vec![vec![0x90, *value, 0x7F], vec![0x90, 0x5E, 0x00]]),
+                        Some(1.0),
+                        0,
+                        None,
+                        true,
+                        false,
+                    )]
+                }
+                0x5E => {
+                    vec![Event::new(
+                        event_idx,
+                        name.to_string(),
+                        vec![0x90, *value, 0x7F, 0x80, *value, 0x00],
+                        Some(vec![vec![0x90, *value, 0x7F], vec![0x90, 0x5D, 0x00]]),
+                        Some(1.0),
+                        0,
+                        None,
+                        true,
+                        false,
+                    )]
+                }
+                0x5F => {
+                    vec![Event::new(
+                        event_idx,
+                        name.to_string(),
+                        vec![0x90, *value, 0x7F, 0x80, *value, 0x00],
+                        None,
+                        Some(1.0),
+                        0,
+                        None,
+                        true,
+                        true,
+                    )]
+                }
                 0x3C => {
                     if *name == "TRANS_Wheel" {
                         vec![
@@ -42,6 +111,7 @@ pub fn craft_recipe(
                                 0,
                                 None,
                                 false,
+                                false,
                             ),
                             Event::new(
                                 event_idx,
@@ -52,17 +122,19 @@ pub fn craft_recipe(
                                 0,
                                 None,
                                 false,
+                                false,
                             ),
                         ]
                     } else {
                         vec![Event::new(
                             event_idx,
                             name.to_string(),
-                            vec![0x90, *value, 0x7F],
+                            vec![0x90, *value, 0x7F, 0x80, *value, 0x00],
                             Some(vec![vec![0x90, *value, 0x00]]),
                             Some(1.0),
                             0,
                             None,
+                            true,
                             true,
                         )]
                     }
@@ -76,15 +148,17 @@ pub fn craft_recipe(
                     0,
                     None,
                     true,
+                    false,
                 )],
                 _ => vec![Event::new(
                     event_idx,
                     name.to_string(),
-                    vec![0x90, *value, 0x7F],
+                    vec![0x90, *value, 0x7F, 0x80, *value, 0x00],
                     Some(vec![vec![0x90, *value, 0x00]]),
                     Some(1.0),
                     0,
                     None,
+                    true,
                     true,
                 )],
             };
@@ -101,6 +175,9 @@ pub fn craft_recipe(
     if let Some(custom_events) = custom_events {
         for (ev_in, evs_out, val_out) in custom_events {
             let mut note_bang = false;
+            let mut vec_out: Vec<Vec<u8>> = vec![];
+            let mut toggable = false;
+
             let event: Option<Event> = match ev_in[0] {
                 0x90 | 0x80 => {
                     let name: Option<String> = match ev_in[1] {
@@ -141,7 +218,11 @@ pub fn craft_recipe(
 
                     if name.is_some() {
                         let mut vec_in = vec![ev_in[0], ev_in[1], 0x7F];
-                        let mut vec_out: Vec<Vec<u8>> = vec![];
+
+                        if note_bang || ev_in.len() == 6 {
+                            println!("Event seems a Note Bang");
+                            vec_in = ev_in.to_vec();
+                        }
 
                         for ev_out in evs_out {
                             vec_out.push(ev_out.to_vec());
@@ -160,6 +241,7 @@ pub fn craft_recipe(
                             0,
                             None,
                             note_bang,
+                            toggable,
                         ) {
                             Ok(ev) => Some(ev),
                             Err(err) => {
@@ -184,6 +266,7 @@ pub fn craft_recipe(
                             0,
                             None,
                             false,
+                            toggable,
                         ) {
                             Ok(ev) => Some(ev),
                             Err(err) => {

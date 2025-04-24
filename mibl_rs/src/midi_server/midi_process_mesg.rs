@@ -76,36 +76,38 @@ pub fn process_midi_mesg(
                 let trigger_mesg_in = trigger.get_mesg_in();
                 let mut note_bang = false;
 
-                if trigger_mesg_in.len() >= 2
+                if trigger_mesg_in.len() >= 3
                     && trigger.get_bang_signal()
                     && sig_flag.note_bang
                     && trigger_mesg_in[1] == sig_flag.note_bang_value
                 {
-                    println!("Event need note bang : {}", trigger.get_name());
                     note_bang = true;
                 }
-                if note_bang || (!trigger.get_bang_signal() && event_data == trigger_mesg_in) {
+
+                if note_bang || event_data == trigger_mesg_in {
                     if debug {
                         println!(
                             "Event triggered {} : {}",
                             trigger.get_index(),
                             trigger.get_name()
                         );
+                        println!("Note bang status : {}", note_bang);
                     }
 
                     let trigger_val_out = trigger.get_val_out();
 
-                    if note_bang {
-                        sig_flag.note_on = false;
-                        sig_flag.note_bang = false;
-                        sig_flag.note_bang_value = 0;
-                    }
-
                     if trigger_val_out.is_none() {
                         match clean_cmd {
                             0x80 | 0x90 => {
+                                let mut note_value = event_data[2];
+
+                                if note_bang {
+                                    note_value = trigger_mesg_in[5];
+                                }
+
                                 let mut tmp_midi_mesg =
-                                    process_note(clean_cmd, event_data[1], event_data[2]);
+                                    process_note(clean_cmd, event_data[1], note_value);
+
                                 tmp_midi_mesg.channel = channel;
                                 val_out = Some(tmp_midi_mesg.value);
 
@@ -237,6 +239,41 @@ pub fn process_midi_mesg(
                         let mut ext_midi_mesg = Vec::<ExtTrigger>::with_capacity(MAX_MIDI_MSG_SIZE);
                         ext_midi_mesg.push((*trigger.get_index(), val_out.unwrap()));
                         ext_trigger_result = Some(ext_midi_mesg);
+                    }
+
+                    if note_bang {
+                        if trigger.get_toggable() {
+                            let note_value = trigger.get_mesg_in()[1];
+                            let mut mesg = [0x90, note_value, 0x7F];
+
+                            if sig_flag.note_led_on.contains(&note_value) {
+                                mesg[2] = 0x00;
+                                let note_idx = sig_flag
+                                    .note_led_on
+                                    .iter()
+                                    .position(|&x| x == note_value)
+                                    .expect("slice should contain elem");
+                                sig_flag.note_led_on.remove(note_idx);
+                            } else {
+                                sig_flag.note_led_on.push(note_value);
+                            }
+
+                            let raw_midi_mesg =
+                                make_raw_midi_mesg(event.delta_frames(), &mesg).unwrap();
+
+                            match int_trigger_result {
+                                Some(ref mut int_trigger) => {
+                                    int_trigger.push(raw_midi_mesg);
+                                }
+                                None => {
+                                    int_trigger_result = Some(vec![raw_midi_mesg]);
+                                }
+                            }
+                        }
+
+                        sig_flag.note_on = false;
+                        sig_flag.note_bang = false;
+                        sig_flag.note_bang_value = 0;
                     }
                 }
             }

@@ -13,6 +13,10 @@ pub fn get_event_by_index(idx: usize) -> Option<(u8, String)> {
     Some((SYS_EVENT_ARRAY[idx].0, SYS_EVENT_ARRAY[idx].1.to_string()))
 }
 
+pub fn get_sys_event_len() -> usize {
+    SYS_EVENT_ARRAY.len()
+}
+
 pub fn convert_half(vel: u8) -> f32 {
     vel as f32 / 127.0
 }

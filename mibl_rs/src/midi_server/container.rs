@@ -33,12 +33,15 @@ impl CCflag {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct SIGflag {
     pub reset_signal: bool,
     pub note_on: bool,
     pub note_bang: bool,
     pub note_bang_value: u8,
+    pub note_led_on: Vec<u8>,
+    pub note_toggle: u8,
+    pub note_need_toggle: bool,
     pub cc_flag: CCflag,
     pub update_recipe: bool,
     pub stop_thread: bool,
@@ -146,6 +149,7 @@ pub struct Event {
     mod_rule: u8,            // 0 in->out, 1 in+x = out, 2 in-x = out,
     mod_amount: Option<f32>, // Increase/Descrease by
     note_bang: bool,
+    toggable: bool,
 }
 
 impl Event {
@@ -158,6 +162,7 @@ impl Event {
         mod_rule: u8,
         mod_amount: Option<f32>,
         note_bang: bool,
+        toggable: bool,
     ) -> Result<Event, String> {
         if mod_rule <= 2 {
             Ok(Self {
@@ -169,6 +174,7 @@ impl Event {
                 mod_rule,
                 mod_amount,
                 note_bang,
+                toggable,
             })
         } else {
             Err("mod_rule must be one of the following value : 0,1,2".to_string())
@@ -209,6 +215,10 @@ impl Event {
     pub fn get_bang_signal(&self) -> bool {
         self.note_bang
     }
+
+    pub fn get_toggable(&self) -> bool {
+        self.toggable
+    }
 }
 
 impl Default for Event {
@@ -222,6 +232,7 @@ impl Default for Event {
             mod_rule: 0,
             mod_amount: None,
             note_bang: false,
+            toggable: false,
         }
     }
 }

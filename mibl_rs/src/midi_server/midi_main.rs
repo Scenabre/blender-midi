@@ -138,7 +138,7 @@ pub fn init_midi_audio(
 
                 if int_signal_arc.lock().unwrap().update_recipe {
                     if debug {
-                        println!("Update recipe !");
+                        println!("Updating recipe in loop");
                     }
                     let recipe = recipe.lock().unwrap().clone();
                     let mut opt_recipe = None;
@@ -151,11 +151,13 @@ pub fn init_midi_audio(
                     *triggers_events.lock().unwrap() =
                         match craft_recipe(&use_sys_event, opt_recipe) {
                             Ok(events) => {
-                                println!("Build triggers in loop");
+                                println!("Triggers build in loop");
                                 events
                             }
                             Err(err) => panic!("Unable to create the trigger table ! {}", err),
                         };
+
+                    int_signal_arc.lock().unwrap().update_recipe = false;
                 }
 
                 let timestamp = *device_params.lock().unwrap().get_timestamp();
@@ -193,17 +195,18 @@ fn input_callback(
     let raw_midi = RawMidi::new(*stamp, mesg).unwrap();
     let mut sig_flag = sigflag.lock().unwrap();
 
+    int_tx.send(vec![mesg.to_vec()]).unwrap();
+
     if mesg[0] == 0x90 {
         sig_flag.note_on = true;
         sig_flag.note_bang_value = mesg[1];
-    } else if sig_flag.note_on && mesg[0] == 0x80 && mesg[1] == sig_flag.note_bang_value {
-        int_tx.send(vec![mesg.to_vec()]).unwrap();
+        sig_flag.note_bang = false;
+    } else if mesg[0] == 0x80 && sig_flag.note_on && mesg[1] == sig_flag.note_bang_value {
         sig_flag.note_bang = true;
     } else {
-        int_tx.send(vec![mesg.to_vec()]).unwrap();
-        //sig_flag.note_on = false;
-        //sig_flag.note_bang = false;
-        //sig_flag.note_bang_value = 0;
+        sig_flag.note_on = false;
+        sig_flag.note_bang = false;
+        sig_flag.note_bang_value = 0;
     }
 
     if mesg[0] == 0x80 && mesg[1] == 0x52 {

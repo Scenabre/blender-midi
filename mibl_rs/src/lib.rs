@@ -20,6 +20,8 @@ struct MiBlRustProcessInner {
     recipe: Recipe,
     recipe_need_update: bool,
     device_state: DeviceState,
+    toggle_btn: u8,
+    toggle_btn_sig: bool,
 }
 
 impl MiBlRustProcessInner {
@@ -32,6 +34,8 @@ impl MiBlRustProcessInner {
             recipe: Recipe::new(),
             recipe_need_update: true,
             device_state: DeviceState::default(),
+            toggle_btn: 0,
+            toggle_btn_sig: false,
         }
     }
 }
@@ -132,6 +136,22 @@ impl MiBlRustProcess {
             .recipe_need_update = update
     }
 
+    fn toggle_btn(&self, btn: u8) {
+        self.inner.lock().expect("lock not poisoned").toggle_btn = btn;
+    }
+
+    fn get_toggle_btn(&self) -> u8 {
+        self.inner.lock().expect("lock not poisoned").toggle_btn
+    }
+
+    fn get_toggle_need_update(&self) -> bool {
+        self.inner.lock().expect("lock not poisoned").toggle_btn_sig
+    }
+
+    fn set_toggle_need_update(&self, state: bool) {
+        self.inner.lock().expect("lock not poisoned").toggle_btn_sig = state;
+    }
+
     fn mi_start_server_allow_thread(&self, debug: bool, py: Python) {
         py.allow_threads(|| mi_start_server(self, debug));
     }
@@ -191,13 +211,16 @@ fn mi_start_server(mibl: &MiBlRustProcess, debug: bool) {
         if mibl.get_recipe_need_update() {
             let py_recipe = mibl.get_recipe();
             println!("Get recipe from python : {:?}", py_recipe);
-            *recipe_arc.lock().unwrap() = mibl.get_recipe();
+            *recipe_arc.lock().unwrap() = py_recipe;
             int_signal_arc.lock().unwrap().use_sys_event = mibl.get_sysevent();
-            println!(
-                "Use sys event ? : {}",
-                int_signal_arc.lock().unwrap().use_sys_event
-            );
+            int_signal_arc.lock().unwrap().update_recipe = true;
             mibl.set_recipe_need_update(false);
+        }
+
+        if mibl.get_toggle_need_update() {
+            let toggle_btn = mibl.get_toggle_btn();
+            int_signal_arc.lock().unwrap().note_need_toggle = true;
+            int_signal_arc.lock().unwrap().note_toggle = toggle_btn;
         }
 
         device_state.lock().unwrap().set_timestamp(
@@ -331,6 +354,11 @@ fn mibl_get_event_by_index(idx: usize) -> Option<(u8, String)> {
     node_utils::sys_event::get_event_by_index(idx)
 }
 
+#[pyfunction]
+fn mibl_get_sys_event_len() -> usize {
+    node_utils::sys_event::get_sys_event_len()
+}
+
 /// A Python module implemented in Rust. The name of this function must match
 /// the `lib.name` setting in the `Cargo.toml`, else Python will not be able to
 /// import the module.
@@ -357,5 +385,6 @@ fn mibllib(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(mibl_ge, m)?)?;
     m.add_function(wrap_pyfunction!(mibl_map_range, m)?)?;
     m.add_function(wrap_pyfunction!(mibl_get_event_by_index, m)?)?;
+    m.add_function(wrap_pyfunction!(mibl_get_sys_event_len, m)?)?;
     Ok(())
 }
