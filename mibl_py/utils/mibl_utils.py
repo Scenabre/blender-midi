@@ -1,6 +1,6 @@
 def generate_midi_note_bang(midi_note, vel):
     int_vel = int(round(vel*127))
-    return [0x90, midi_note, int_vel, 0x80, midi_note, int_vel]
+    return [0x90, midi_note, 0x7F, 0x80, midi_note, int_vel]
 
 
 def get_midi_note_num(note_num, octave_num):
