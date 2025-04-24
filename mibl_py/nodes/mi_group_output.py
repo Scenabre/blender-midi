@@ -36,12 +36,11 @@ class NODE_MI_BL_group_output(Node, MI_BL_Node):
         return self._recipe
 
     def execute(self):
-        # mibl_props = bpy.context.scene.mibl
-        # current_triggers = list(mibl_props.mi_trigger_list)
         self._sys_data = None
         self._recipe = None
         self._recipe_footprint = None
         collector = []
+        mibl_props = bpy.context.scene.mibl
 
         system_link = self.inputs[0]
         recipe_link = self.inputs[1]
@@ -52,7 +51,6 @@ class NODE_MI_BL_group_output(Node, MI_BL_Node):
         for idx, link in enumerate(links):
             if link.is_linked:
                 linked_node = link.links[0]
-                # print("Get value from : ", linked_node.from_node.name)
                 linked_node.from_node.update()
                 node_value = linked_node.from_socket.get_value()
                 collector.append(node_value)
@@ -68,14 +66,30 @@ class NODE_MI_BL_group_output(Node, MI_BL_Node):
         if self._recipe is not None:
             recipe_str = ""
 
-            for ing in self._recipe:
-                recipe_str += ing.name
+            for (idx, ing) in enumerate(self._recipe.ingredients):
+                recipe_str += ing.ing_name
 
-            self._recipe_hash = hashlib.md5(recipe_str).hexdigest()
+            self._recipe_footprint = hashlib.md5(str.encode(recipe_str)).hexdigest()
 
-            mibl_props = bpy.context.scene.mibl
+            # print("Curr str : ", recipe_str)
+            # print("Curr footprint : ", self._recipe_footprint)
+            # print("Saved footprint : ", mibl_props.mi_recipe_footprint)
 
             if mibl_props.mi_recipe_footprint != self._recipe_footprint:
                 print("Update recipe !")
-                mibl_props.mi_recipe_need_update = True
-                mibl_props.mi_recipe_footprint = self._recipe_footprint
+                if self._recipe_footprint is not None:
+                    mibl_props.mi_recipe.clean_ingredients()
+
+                    for ingredient in self._recipe.ingredients:
+                        new_ingredient = mibl_props.mi_recipe.ingredients.add()
+                        new_ingredient.ing_name = ingredient.ing_name
+                        new_ingredient.midi_in = ingredient.midi_in
+
+                        for midi_arr in new_ingredient.midi_out:
+                            new_midi_out = new_ingredient.midi_out.add()
+                            new_midi_out.vec_out = midi_arr
+
+                        new_ingredient.opt_val = ingredient.opt_val
+
+                    mibl_props.mi_recipe_need_update = True
+                    mibl_props.mi_recipe_footprint = self._recipe_footprint

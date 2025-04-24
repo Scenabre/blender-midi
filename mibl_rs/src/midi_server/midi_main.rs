@@ -1,6 +1,5 @@
 use log::{error, info, warn};
 use midir::MidiOutputConnection;
-use rand::seq::IndexedRandom;
 
 use crate::midi_server::container::{
     CCflag, DeviceState, Event, ExtTrigger, RawMidi, Recipe, SIGflag,
@@ -11,7 +10,6 @@ use crate::midi_server::midi_send_mesg::{
     gen_lcd_string, initialize_mc_device, reset_mc_device, send_note_bang, timestamp_gen,
 };
 use crate::midi_server::setup_client_params::setup_client_params;
-use std::clone;
 use std::sync::mpsc::{channel, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
@@ -20,14 +18,17 @@ use std::time::Duration;
 pub fn init_midi_audio(
     tx: Sender<Vec<ExtTrigger>>,
     ext_signal: Sender<DeviceState>,
-    int_signal: Arc<Mutex<bool>>,
+    int_signal: Arc<Mutex<SIGflag>>,
     recipe: Arc<Mutex<Recipe>>,
-    use_sys_event: Arc<Mutex<bool>>,
     device_params: Arc<Mutex<DeviceState>>,
 ) {
+    let debug = int_signal.lock().unwrap().debug;
+
     match setup_client_params() {
         Ok(params) => {
-            println!("Connect to port : {}", params.port_name);
+            if debug {
+                println!("Connect to port : {}", params.port_name);
+            }
 
             let mut conn_out: MidiOutputConnection = match params
                 .midi_output
@@ -35,18 +36,34 @@ pub fn init_midi_audio(
             {
                 Ok(out) => out,
                 Err(err) => {
-                    error!("Unable to connect to output : {}", err);
+                    println!("Unable to connect to output : {}", err);
                     return;
                 }
             };
 
             sleep(Duration::from_millis(50)); // Wait a little time after creating connection output
 
-            let mut init_mesgs: Vec<RawMidi>;
-
             match device_params.lock() {
                 Ok(device_params_lock) => {
-                    init_mesgs = initialize_mc_device(&device_params_lock).unwrap();
+                    let init_mesgs = initialize_mc_device(&device_params_lock).unwrap();
+
+                    if debug {
+                        println!("Sending all messages to midi device now…");
+                    }
+
+                    let init_mesgs_len = init_mesgs.len();
+
+                    for (idx, mesg) in init_mesgs.iter().enumerate() {
+                        println!(
+                            "Sending mesg {}/{} : {:04X?}",
+                            (idx + 1),
+                            init_mesgs_len,
+                            mesg.data()
+                        );
+
+                        let _ = conn_out.send(mesg.data());
+                        sleep(Duration::from_millis(10));
+                    }
                 }
                 Err(err) => {
                     println!(
@@ -57,47 +74,33 @@ pub fn init_midi_audio(
                 }
             }
 
-            info!("Sending all messages to midi device now…");
+            let triggers_events: Arc<Mutex<Option<Vec<Event>>>> = Arc::new(Mutex::new(None));
 
-            let init_mesgs_len = init_mesgs.len();
-
-            for (idx, mesg) in init_mesgs.iter().enumerate() {
-                info!(
-                    "Sending mesg {}/{} : {:04X?}",
-                    (idx + 1),
-                    init_mesgs_len,
-                    mesg.data()
-                );
-
-                let _ = conn_out.send(mesg.data());
-                sleep(Duration::from_millis(10));
-            }
-
-            let recipe = recipe.lock().unwrap().clone();
+            let recipe_lock = recipe.lock().unwrap().clone();
             let mut opt_recipe = None;
-            let use_sys_event = use_sys_event.lock().unwrap();
+            let use_sys_event = int_signal.lock().unwrap().use_sys_event;
 
-            if !recipe.is_empty() {
-                opt_recipe = Some(&recipe);
+            if !recipe_lock.is_empty() {
+                opt_recipe = Some(&recipe_lock);
             }
 
-            let triggers_events = match craft_recipe(&use_sys_event, opt_recipe) {
-                Ok(events) => events,
+            *triggers_events.lock().unwrap() = match craft_recipe(&use_sys_event, opt_recipe) {
+                Ok(events) => {
+                    println!("Build triggers before conn_in");
+                    events
+                }
                 Err(err) => panic!("Unable to create the trigger table ! {}", err),
             };
 
-            drop(recipe);
-            drop(use_sys_event);
+            drop(recipe_lock);
 
-            println!("Triggers Events : {:?}", triggers_events);
+            if debug {
+                println!("Triggers Events : {:?}", triggers_events.lock().unwrap());
 
-            info!("Initialization done!");
+                println!("Initialization done!");
+            }
 
             let (int_tx, int_rx) = channel();
-            let sig_flag = Arc::new(Mutex::new(SIGflag {
-                debug: false,
-                ..Default::default()
-            }));
 
             let _conn_in = params.midi_input.connect(
                 &params.midi_input_port,
@@ -108,20 +111,20 @@ pub fn init_midi_audio(
                         &midi_datas.0,
                         &midi_datas.1,
                         &midi_datas.2,
-                        Some(&midi_datas.3),
+                        &midi_datas.3,
                         &midi_datas.4,
                     );
                 },
                 (
-                    sig_flag.clone(),
+                    int_signal.clone(),
                     int_tx.clone(),
                     tx,
-                    triggers_events,
+                    triggers_events.clone(),
                     device_params.clone(),
                 ),
             );
 
-            let stop_signal_arc = Arc::clone(&int_signal);
+            let int_signal_arc = Arc::clone(&int_signal);
             let device_params_lock = device_params.lock().unwrap();
             let fps = *device_params_lock.get_fps();
             drop(device_params_lock);
@@ -129,8 +132,30 @@ pub fn init_midi_audio(
             let duration: u64 = 1000 / fps;
 
             loop {
-                if *stop_signal_arc.lock().unwrap() {
+                if int_signal_arc.lock().unwrap().stop_thread {
                     return;
+                }
+
+                if int_signal_arc.lock().unwrap().update_recipe {
+                    if debug {
+                        println!("Update recipe !");
+                    }
+                    let recipe = recipe.lock().unwrap().clone();
+                    let mut opt_recipe = None;
+                    let use_sys_event = int_signal.lock().unwrap().use_sys_event;
+
+                    if !recipe.is_empty() {
+                        opt_recipe = Some(&recipe);
+                    }
+
+                    *triggers_events.lock().unwrap() =
+                        match craft_recipe(&use_sys_event, opt_recipe) {
+                            Ok(events) => {
+                                println!("Build triggers in loop");
+                                events
+                            }
+                            Err(err) => panic!("Unable to create the trigger table ! {}", err),
+                        };
                 }
 
                 let timestamp = *device_params.lock().unwrap().get_timestamp();
@@ -161,7 +186,7 @@ fn input_callback(
     sigflag: &Arc<Mutex<SIGflag>>,
     int_tx: &Sender<Vec<Vec<u8>>>,
     ext_tx: &Sender<Vec<ExtTrigger>>,
-    triggers: Option<&Vec<Event>>,
+    triggers: &Arc<Mutex<Option<Vec<Event>>>>,
     device_params: &Arc<Mutex<DeviceState>>,
 ) {
     let (stamp, mesg) = data_in;
@@ -237,13 +262,15 @@ fn input_callback(
         sig_flag.reset_signal = false;
     }
 
-    let midi_result = process_midi_mesg(&raw_midi, "MC", &mut sig_flag, triggers);
+    let midi_result = process_midi_mesg(&raw_midi, "MC", &mut sig_flag, &triggers.lock().unwrap());
 
     match midi_result {
         Ok(mesgs) => {
             match mesgs.to_send.0 {
                 Some(mesgs) => {
-                    println!("Sending triggered data to midi port !");
+                    if sig_flag.debug {
+                        println!("Sending triggered data to midi port !");
+                    }
                     let mut midi_datas = vec![];
 
                     for midi_data in mesgs {
@@ -257,20 +284,31 @@ fn input_callback(
                         }
                     }
                 }
-                None => println!("Nothing to send to internal midi server !"),
+                None => {
+                    if sig_flag.debug {
+                        println!("Nothing to send to internal midi server !")
+                    }
+                }
             }
 
             match mesgs.to_send.1 {
                 Some(mesgs) => {
-                    println!("Preparing to send trigger to client : {:04X?}", mesgs);
+                    if sig_flag.debug {
+                        println!("Preparing to send trigger to client : {:04X?}", mesgs);
+                    }
+
                     match ext_tx.send(mesgs) {
                         Ok(_) => (),
                         Err(err) => {
-                            error!("Error when sending midi mesg to output : {}", err)
+                            println!("Error when sending midi mesg to output : {}", err)
                         }
                     }
                 }
-                None => println!("Nothing to send, skip it…"),
+                None => {
+                    if sig_flag.debug {
+                        println!("Nothing to send, skip it…")
+                    }
+                }
             }
         }
         Err(err) => println!("No midi mesg output : {}", err),

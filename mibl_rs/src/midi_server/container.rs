@@ -40,6 +40,9 @@ pub struct SIGflag {
     pub note_bang: bool,
     pub note_bang_value: u8,
     pub cc_flag: CCflag,
+    pub update_recipe: bool,
+    pub stop_thread: bool,
+    pub use_sys_event: bool,
     pub debug: bool,
 }
 

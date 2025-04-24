@@ -42,9 +42,23 @@ def update_midi_value(context):
     mibl_rs.set_fps(fps)
     mibl_rs.set_timestamp(hours, minutes, seconds, frames)
 
+    # (Vec<u8>, Vec<Vec<u8>>, Option<f32>)
+
     if mibl_props.mi_recipe_need_update:
-        mibl_rs.set_recipe(mibl_props.mi_recipe)
-        mibl_props.set_recipe_need_update(True)
+        ingredients = []
+
+        for ing in mibl_props.mi_recipe.ingredients:
+            rs_in = list(filter((-1).__ne__, list(ing.midi_in)))
+            rs_out = []
+
+            for mesg in list(ing.midi_out):
+                rs_out.append(list(filter((-1).__ne__, mesg.vec_out)))
+
+            rs_ing = (rs_in, rs_out, ing.opt_val)
+            ingredients.append(rs_ing)
+
+        mibl_rs.set_recipe(ingredients)
+        mibl_rs.set_recipe_need_update(True)
         mibl_props.mi_recipe_need_update = False
 
     if len(sys_signals) > 0:
@@ -157,7 +171,8 @@ class MI_BL_OT_update_server_state(Operator):
                 mibl_rs = MiBlRustProcess()
 
             mibl_rs.set_close_signal(False)
-            mibl_thread = threading.Thread(target=mibl_rs.mi_start_server_allow_thread)
+            mibl_rs.set_sysevent(True)
+            mibl_thread = threading.Thread(target=mibl_rs.mi_start_server_allow_thread, args=(True,))
 
             scene.mibl.mi_run_server = True
 

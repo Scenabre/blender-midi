@@ -126,9 +126,9 @@ class PropsMiBl(PropertyGroup):
         description="Trigger from recipe",
         type=MI_BL_TriggerProp,
     )
-    mi_recipe: CollectionProperty(
+    mi_recipe: PointerProperty(
         name="mi_recipe",
-        type=MI_BL_Ingredient
+        type=MI_BL_Recipe
     )
     mi_init: PointerProperty(
         type=MI_BL_SysParams

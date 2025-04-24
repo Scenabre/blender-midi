@@ -1,7 +1,7 @@
 use crate::midi_server::container::Recipe;
 use crate::midi_server::midi_main::init_midi_audio;
 use core::time;
-use midi_server::container::{DeviceState, Event, ExtTrigger};
+use midi_server::container::{DeviceState, Event, ExtTrigger, SIGflag};
 use pyo3::prelude::*;
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
@@ -72,6 +72,10 @@ impl MiBlRustProcess {
         self.inner.lock().expect("lock not poisoned").use_sysevent
     }
 
+    fn set_sysevent(&self, use_sysevent: bool) {
+        self.inner.lock().expect("lock not poisoned").use_sysevent = use_sysevent;
+    }
+
     fn get_fps(&self) -> u64 {
         *self
             .inner
@@ -128,24 +132,26 @@ impl MiBlRustProcess {
             .recipe_need_update = update
     }
 
-    fn mi_start_server_allow_thread(&self, py: Python) {
-        py.allow_threads(|| mi_start_server(self));
+    fn mi_start_server_allow_thread(&self, debug: bool, py: Python) {
+        py.allow_threads(|| mi_start_server(self, debug));
     }
 }
 
-fn mi_start_server(mibl: &MiBlRustProcess) {
+fn mi_start_server(mibl: &MiBlRustProcess, debug: bool) {
     let (tx_channel_rx, rx_channel_rx) = channel::<Vec<ExtTrigger>>();
     let (tx_channel_tx, rx_channel_tx) = channel::<Vec<ExtTrigger>>();
     let (tx_device_state, rx_device_state) = channel::<DeviceState>();
 
-    let int_signal_arc = Arc::new(Mutex::new(false));
+    let int_signal_arc = Arc::new(Mutex::new(SIGflag {
+        debug,
+        use_sys_event: mibl.get_sysevent(),
+        ..Default::default()
+    }));
+
     let int_signal_arc_clone = Arc::clone(&int_signal_arc);
 
-    let recipe_arc = Arc::new(Mutex::new(Recipe::new()));
+    let recipe_arc = Arc::new(Mutex::new(mibl.get_recipe()));
     let recipe_arc_clone = Arc::clone(&recipe_arc);
-
-    let use_sysevent = Arc::new(Mutex::new(true));
-    let use_sysevent_clone = Arc::clone(&use_sysevent);
 
     let orig_device_state = mibl
         .inner
@@ -158,6 +164,12 @@ fn mi_start_server(mibl: &MiBlRustProcess) {
     drop(orig_device_state);
     let device_state_clone = Arc::clone(&device_state);
 
+    let device_params_lock = device_state.lock().unwrap();
+    let fps = *device_params_lock.get_fps();
+    drop(device_params_lock);
+
+    let duration: u64 = 1000 / fps;
+
     let midi_audio_thread = spawn(move || {
         let sender_tx = tx_channel_rx.clone();
         let sender_device_state = tx_device_state.clone();
@@ -167,7 +179,6 @@ fn mi_start_server(mibl: &MiBlRustProcess) {
             sender_device_state,
             int_signal_arc_clone,
             recipe_arc_clone,
-            use_sysevent_clone,
             device_state_clone,
         );
     });
@@ -178,8 +189,14 @@ fn mi_start_server(mibl: &MiBlRustProcess) {
         let fps = mibl.get_fps();
 
         if mibl.get_recipe_need_update() {
+            let py_recipe = mibl.get_recipe();
+            println!("Get recipe from python : {:?}", py_recipe);
             *recipe_arc.lock().unwrap() = mibl.get_recipe();
-            *use_sysevent.lock().unwrap() = mibl.get_sysevent();
+            int_signal_arc.lock().unwrap().use_sys_event = mibl.get_sysevent();
+            println!(
+                "Use sys event ? : {}",
+                int_signal_arc.lock().unwrap().use_sys_event
+            );
             mibl.set_recipe_need_update(false);
         }
 
@@ -193,7 +210,7 @@ fn mi_start_server(mibl: &MiBlRustProcess) {
         device_state.lock().unwrap().set_fps(fps);
 
         if ext_signal {
-            *int_signal_arc.lock().unwrap() = true;
+            int_signal_arc.lock().unwrap().stop_thread = true;
             midi_audio_thread.join().unwrap();
             return;
         }
@@ -207,7 +224,7 @@ fn mi_start_server(mibl: &MiBlRustProcess) {
             println!("{:?}", device_state);
         }
 
-        sleep(Duration::from_millis(10));
+        sleep(Duration::from_millis(duration));
     }
 }
 
