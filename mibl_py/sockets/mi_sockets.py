@@ -63,7 +63,7 @@ class SOCKET_INT_MI_BL_MidiIngredient(NodeTreeInterfaceSocket):
         layout.prop(self, "ingredient_default_value")
 
     def init_socket(self, node, socket, data_path):
-        socket.ingredient.name = self.ingredient_default_value.name
+        socket.ingredient.ing_name = self.ingredient_default_value.ing_name
         socket.ingredient.midi_in = self.ingredient_default_value.midi_in
         socket.ingredient.midi_out = self.ingredient_default_value.midi_out
         socket.ingredient.opt_val = self.ingredient_default_value.opt_val
