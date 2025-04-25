@@ -321,6 +321,10 @@ impl DeviceState {
         &self.timestamp
     }
 
+    pub fn set_timestamp(&mut self, hours: usize, minutes: usize, seconds: usize, frames: usize) {
+        self.timestamp = [hours, minutes, seconds, frames]
+    }
+
     pub fn get_lcd_vec(&self) -> &Option<Vec<(u8, u8, String)>> {
         &self.lcd_vec
     }
@@ -347,10 +351,6 @@ impl DeviceState {
 
     pub fn set_fps(&mut self, fps: u64) {
         self.fps = fps
-    }
-
-    pub fn set_timestamp(&mut self, hours: usize, minutes: usize, seconds: usize, frames: usize) {
-        self.timestamp = [hours, minutes, seconds, frames]
     }
 }
 
