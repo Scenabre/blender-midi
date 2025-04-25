@@ -126,7 +126,7 @@ pub fn init_midi_audio(
 
             let int_signal_arc = Arc::clone(&int_signal);
             let device_params_lock = device_params.lock().unwrap();
-            let fps = *device_params_lock.get_fps();
+            let mut fps = *device_params_lock.get_fps();
             drop(device_params_lock);
 
             let duration: u64 = 1000 / fps;
@@ -158,6 +158,30 @@ pub fn init_midi_audio(
                         };
 
                     int_signal_arc.lock().unwrap().update_recipe = false;
+                }
+
+                if int_signal_arc.lock().unwrap().update_lcd_vec {
+                    int_signal_arc.lock().unwrap().update_lcd_vec = false;
+                }
+
+                if int_signal_arc.lock().unwrap().update_lcd_string {
+                    int_signal_arc.lock().unwrap().update_lcd_string = false;
+                }
+
+                if int_signal_arc.lock().unwrap().update_vpot {
+                    int_signal_arc.lock().unwrap().update_vpot = false;
+                }
+
+                if int_signal_arc.lock().unwrap().update_faders {
+                    int_signal_arc.lock().unwrap().update_faders = false;
+                }
+
+                if int_signal_arc.lock().unwrap().update_chan_btns {
+                    int_signal_arc.lock().unwrap().update_chan_btns = false;
+                }
+
+                if int_signal_arc.lock().unwrap().update_fps {
+                    int_signal_arc.lock().unwrap().update_fps = false;
                 }
 
                 let timestamp = *device_params.lock().unwrap().get_timestamp();

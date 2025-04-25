@@ -19,7 +19,7 @@ struct MiBlRustProcessInner {
     use_sysevent: bool,
     recipe: Recipe,
     recipe_need_update: bool,
-    device_state: DeviceState,
+    device_state: PyDeviceState,
     toggle_btn: u8,
     toggle_btn_sig: bool,
 }
@@ -33,7 +33,7 @@ impl MiBlRustProcessInner {
             use_sysevent: true,
             recipe: Recipe::new(),
             recipe_need_update: true,
-            device_state: DeviceState::default(),
+            device_state: PyDeviceState::default(),
             toggle_btn: 0,
             toggle_btn_sig: false,
         }
@@ -43,6 +43,18 @@ impl MiBlRustProcessInner {
 #[pyclass(frozen)]
 struct MiBlRustProcess {
     inner: Mutex<MiBlRustProcessInner>,
+}
+
+#[derive(Clone, Debug, Default)]
+#[pyclass(frozen)]
+struct PyDeviceState {
+    lcd_vec_update: bool,
+    lcd_string_update: bool,
+    vpot_update: bool,
+    faders_update: bool,
+    chan_btns_update: bool,
+    fps_update: bool,
+    inner: DeviceState,
 }
 
 #[pymethods]
@@ -80,21 +92,61 @@ impl MiBlRustProcess {
         self.inner.lock().expect("lock not poisoned").use_sysevent = use_sysevent;
     }
 
-    fn get_fps(&self) -> u64 {
-        *self
-            .inner
-            .lock()
-            .expect("lock not poisoned")
-            .device_state
-            .get_fps()
-    }
-
-    fn set_fps(&self, fps: u64) {
+    fn get_devicestate(&self) -> PyDeviceState {
         self.inner
             .lock()
             .expect("lock not poisoned")
             .device_state
-            .set_fps(fps);
+            .clone()
+    }
+
+    fn get_devicestate_update(&self) -> Option<Vec<u8>> {
+        let mut updates: Option<Vec<u8>> = None;
+        let mut tmp_update = vec![];
+
+        if self.inner.lock().unwrap().device_state.lcd_vec_update {
+            tmp_update.push(0);
+        }
+
+        if self.inner.lock().unwrap().device_state.lcd_string_update {
+            tmp_update.push(1);
+        }
+
+        if self.inner.lock().unwrap().device_state.vpot_update {
+            tmp_update.push(2);
+        }
+
+        if self.inner.lock().unwrap().device_state.faders_update {
+            tmp_update.push(3);
+        }
+
+        if self.inner.lock().unwrap().device_state.chan_btns_update {
+            tmp_update.push(4);
+        }
+
+        if self.inner.lock().unwrap().device_state.fps_update {
+            tmp_update.push(5);
+        }
+
+        if !tmp_update.is_empty() {
+            updates = Some(tmp_update);
+        }
+
+        updates
+    }
+
+    fn set_devicestate_update(&self, updates: Vec<u8>) {
+        for update in updates {
+            match update {
+                0 => self.inner.lock().unwrap().device_state.lcd_vec_update = true,
+                1 => self.inner.lock().unwrap().device_state.lcd_string_update = true,
+                2 => self.inner.lock().unwrap().device_state.vpot_update = true,
+                3 => self.inner.lock().unwrap().device_state.faders_update = true,
+                4 => self.inner.lock().unwrap().device_state.chan_btns_update = true,
+                5 => self.inner.lock().unwrap().device_state.fps_update = true,
+                _ => println!("Attribute unknown"),
+            }
+        }
     }
 
     fn get_timestamp(&self) -> [usize; 4] {
@@ -103,6 +155,7 @@ impl MiBlRustProcess {
             .lock()
             .expect("lock not poisoned")
             .device_state
+            .inner
             .get_timestamp()
     }
 
@@ -111,15 +164,130 @@ impl MiBlRustProcess {
             .lock()
             .expect("lock not poisoned")
             .device_state
+            .inner
             .set_timestamp(hours, minutes, seconds, frames);
     }
 
-    fn set_recipe(&self, recipe: Recipe) {
-        self.inner.lock().expect("lock not poisoned").recipe = recipe;
+    fn get_lcd_vec(&self) -> Option<Vec<(u8, u8, String)>> {
+        self.inner
+            .lock()
+            .expect("lock not poisoned")
+            .device_state
+            .inner
+            .get_lcd_vec()
+            .clone()
+    }
+
+    fn set_lcd_vec(&self, lcd_vec: Vec<(u8, u8, String)>) {
+        self.inner
+            .lock()
+            .expect("lock not poisoned")
+            .device_state
+            .inner
+            .set_lcd_vec(Some(lcd_vec));
+    }
+
+    fn get_lcd_string(&self) -> Option<String> {
+        self.inner
+            .lock()
+            .expect("lock not poisoned")
+            .device_state
+            .inner
+            .get_lcd_string()
+            .clone()
+    }
+
+    fn set_lcd_string(&self, lcd_string: String) {
+        self.inner
+            .lock()
+            .expect("lock not poisoned")
+            .device_state
+            .inner
+            .set_lcd_string(Some(lcd_string));
+    }
+
+    fn get_vpots(&self) -> Vec<[u8; 3]> {
+        self.inner
+            .lock()
+            .expect("lock not poisoned")
+            .device_state
+            .inner
+            .get_vpots()
+            .clone()
+    }
+
+    fn set_vpots(&self, vpots: Vec<[u8; 3]>) {
+        self.inner
+            .lock()
+            .expect("lock not poisoned")
+            .device_state
+            .inner
+            .set_vpots(vpots);
+    }
+
+    fn get_faders(&self) -> Vec<(u8, f32)> {
+        self.inner
+            .lock()
+            .expect("lock not poisoned")
+            .device_state
+            .inner
+            .get_faders()
+            .clone()
+    }
+
+    fn set_faders(&self, faders: Vec<(u8, f32)>) {
+        self.inner
+            .lock()
+            .expect("lock not poisoned")
+            .device_state
+            .inner
+            .set_faders(faders);
+    }
+
+    fn get_chan_btns(&self) -> Vec<(u8, u8, bool)> {
+        self.inner
+            .lock()
+            .expect("lock not poisoned")
+            .device_state
+            .inner
+            .get_chan_btns()
+            .clone()
+    }
+
+    fn set_chan_btns(&self, chan_btns: Vec<(u8, u8, bool)>) {
+        self.inner
+            .lock()
+            .expect("lock not poisoned")
+            .device_state
+            .inner
+            .set_chan_btns(chan_btns)
+    }
+
+    fn get_fps(&self) -> u64 {
+        *self
+            .inner
+            .lock()
+            .expect("lock not poisoned")
+            .device_state
+            .inner
+            .get_fps()
+    }
+
+    fn set_fps(&self, fps: u64) {
+        self.inner
+            .lock()
+            .expect("lock not poisoned")
+            .device_state
+            .inner
+            .set_fps(fps);
     }
 
     fn get_recipe(&self) -> Recipe {
         self.inner.lock().expect("lock not poisoned").recipe.clone()
+    }
+
+    fn set_recipe(&self, recipe: Recipe) {
+        self.inner.lock().expect("lock not poisoned").recipe = recipe;
     }
 
     fn get_recipe_need_update(&self) -> bool {
@@ -136,12 +304,12 @@ impl MiBlRustProcess {
             .recipe_need_update = update
     }
 
-    fn toggle_btn(&self, btn: u8) {
-        self.inner.lock().expect("lock not poisoned").toggle_btn = btn;
-    }
-
     fn get_toggle_btn(&self) -> u8 {
         self.inner.lock().expect("lock not poisoned").toggle_btn
+    }
+
+    fn set_toggle_btn(&self, btn: u8) {
+        self.inner.lock().expect("lock not poisoned").toggle_btn = btn;
     }
 
     fn get_toggle_need_update(&self) -> bool {
@@ -173,22 +341,17 @@ fn mi_start_server(mibl: &MiBlRustProcess, debug: bool) {
     let recipe_arc = Arc::new(Mutex::new(mibl.get_recipe()));
     let recipe_arc_clone = Arc::clone(&recipe_arc);
 
-    let orig_device_state = mibl
-        .inner
-        .lock()
-        .expect("lock not poisoned")
-        .device_state
-        .clone();
+    let orig_device_state = mibl.get_devicestate().inner;
 
     let device_state = Arc::new(Mutex::new(orig_device_state.clone()));
     drop(orig_device_state);
     let device_state_clone = Arc::clone(&device_state);
 
     let device_params_lock = device_state.lock().unwrap();
-    let fps = *device_params_lock.get_fps();
+    let mut fps = *device_params_lock.get_fps();
     drop(device_params_lock);
 
-    let duration: u64 = 1000 / fps;
+    let mut duration: u64 = 1000 / fps;
 
     let midi_audio_thread = spawn(move || {
         let sender_tx = tx_channel_rx.clone();
@@ -205,8 +368,53 @@ fn mi_start_server(mibl: &MiBlRustProcess, debug: bool) {
 
     loop {
         let ext_signal = mibl.get_close_signal();
+
+        if ext_signal {
+            int_signal_arc.lock().unwrap().stop_thread = true;
+            midi_audio_thread.join().unwrap();
+            return;
+        }
+
         let timestamp_py = mibl.get_timestamp();
-        let fps = mibl.get_fps();
+
+        if let Some(updates) = mibl.get_devicestate_update() {
+            if updates.contains(&0) {
+                let lcd_vec = mibl.get_lcd_vec();
+                device_state.lock().unwrap().set_lcd_vec(lcd_vec);
+                int_signal_arc.lock().unwrap().update_lcd_vec = true;
+            }
+
+            if updates.contains(&1) {
+                let lcd_string = mibl.get_lcd_string();
+                device_state.lock().unwrap().set_lcd_string(lcd_string);
+                int_signal_arc.lock().unwrap().update_lcd_string = true;
+            }
+
+            if updates.contains(&2) {
+                let vpots = mibl.get_vpots();
+                device_state.lock().unwrap().set_vpots(vpots);
+                int_signal_arc.lock().unwrap().update_vpot = true;
+            }
+
+            if updates.contains(&3) {
+                let fader_vec = mibl.get_faders();
+                device_state.lock().unwrap().set_faders(fader_vec);
+                int_signal_arc.lock().unwrap().update_faders = true;
+            }
+
+            if updates.contains(&4) {
+                let chan_btns = mibl.get_chan_btns();
+                device_state.lock().unwrap().set_chan_btns(chan_btns);
+                int_signal_arc.lock().unwrap().update_chan_btns = true;
+            }
+
+            if updates.contains(&5) {
+                fps = mibl.get_fps();
+                duration = 1000 / fps;
+                device_state.lock().unwrap().set_fps(fps);
+                int_signal_arc.lock().unwrap().update_fps = true;
+            }
+        }
 
         if mibl.get_recipe_need_update() {
             let py_recipe = mibl.get_recipe();
@@ -229,14 +437,6 @@ fn mi_start_server(mibl: &MiBlRustProcess, debug: bool) {
             timestamp_py[2],
             timestamp_py[3],
         );
-
-        device_state.lock().unwrap().set_fps(fps);
-
-        if ext_signal {
-            int_signal_arc.lock().unwrap().stop_thread = true;
-            midi_audio_thread.join().unwrap();
-            return;
-        }
 
         if let Ok(triggers) = rx_channel_rx.try_recv() {
             mibl.set_triggers(triggers);

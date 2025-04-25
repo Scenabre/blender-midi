@@ -44,6 +44,12 @@ pub struct SIGflag {
     pub note_need_toggle: bool,
     pub cc_flag: CCflag,
     pub update_recipe: bool,
+    pub update_lcd_vec: bool,
+    pub update_lcd_string: bool,
+    pub update_vpot: bool,
+    pub update_faders: bool,
+    pub update_chan_btns: bool,
+    pub update_fps: bool,
     pub stop_thread: bool,
     pub use_sys_event: bool,
     pub debug: bool,
@@ -329,20 +335,40 @@ impl DeviceState {
         &self.lcd_vec
     }
 
+    pub fn set_lcd_vec(&mut self, lcd_vec: Option<Vec<(u8, u8, String)>>) {
+        self.lcd_vec = lcd_vec;
+    }
+
     pub fn get_lcd_string(&self) -> &Option<String> {
         &self.lcd_string
+    }
+
+    pub fn set_lcd_string(&mut self, str: Option<String>) {
+        self.lcd_string = str;
     }
 
     pub fn get_vpots(&self) -> &Vec<[u8; 3]> {
         &self.vpot
     }
 
+    pub fn set_vpots(&mut self, vpot_vec: Vec<[u8; 3]>) {
+        self.vpot = vpot_vec;
+    }
+
     pub fn get_faders(&self) -> &Vec<(u8, f32)> {
         &self.faders
     }
 
+    pub fn set_faders(&mut self, fader_vec: Vec<(u8, f32)>) {
+        self.faders = fader_vec;
+    }
+
     pub fn get_chan_btns(&self) -> &Vec<(u8, u8, bool)> {
         &self.chan_btns
+    }
+
+    pub fn set_chan_btns(&mut self, chan_btns: Vec<(u8, u8, bool)>) {
+        self.chan_btns = chan_btns;
     }
 
     pub fn get_fps(&self) -> &u64 {
