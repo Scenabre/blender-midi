@@ -7,7 +7,8 @@ use crate::midi_server::container::{
 use crate::midi_server::midi_event::craft_recipe;
 use crate::midi_server::midi_process_mesg::process_midi_mesg;
 use crate::midi_server::midi_send_mesg::{
-    gen_lcd_string, initialize_mc_device, reset_mc_device, send_note_bang, timestamp_gen,
+    convert_value_to_lsb_msb, gen_lcd_string, initialize_mc_device, make_lcd_mesg,
+    make_raw_midi_mesg, pan_knob_gen, reset_mc_device, send_note_bang, timestamp_gen,
 };
 use crate::midi_server::setup_client_params::setup_client_params;
 use std::sync::mpsc::{channel, Sender};
@@ -129,7 +130,7 @@ pub fn init_midi_audio(
             let mut fps = *device_params_lock.get_fps();
             drop(device_params_lock);
 
-            let duration: u64 = 1000 / fps;
+            let mut duration: u64 = 1000 / fps;
 
             loop {
                 if int_signal_arc.lock().unwrap().stop_thread {
@@ -161,26 +162,133 @@ pub fn init_midi_audio(
                 }
 
                 if int_signal_arc.lock().unwrap().update_lcd_vec {
+                    let lcd_vec = device_params.lock().unwrap().get_lcd_vec().clone();
+                    let mut raw_midi_mesg: Vec<RawMidi> = vec![];
+
+                    if let Some(lcd_vec) = lcd_vec {
+                        for lcd_def in lcd_vec {
+                            let lcd_num = lcd_def.0;
+                            let line_num = lcd_def.1;
+                            let lcd_mesg = lcd_def.2.clone();
+                            match make_lcd_mesg(0, lcd_num, line_num, lcd_mesg) {
+                                Ok(raw_midi) => raw_midi_mesg.push(raw_midi),
+                                Err(err) => println!(
+                                    "Unable to generate LCD message {:?} : {}",
+                                    lcd_def, err
+                                ),
+                            };
+                        }
+                    }
+
+                    for raw_midi in raw_midi_mesg {
+                        conn_out.send(raw_midi.data()).unwrap();
+                    }
+
                     int_signal_arc.lock().unwrap().update_lcd_vec = false;
                 }
 
                 if int_signal_arc.lock().unwrap().update_lcd_string {
+                    let lcd_string = device_params.lock().unwrap().get_lcd_string().clone();
+
+                    match gen_lcd_string(0, lcd_string.clone()) {
+                        Ok(raw_midi_mesg) => {
+                            for raw_midi in raw_midi_mesg {
+                                conn_out.send(raw_midi.data()).unwrap();
+                            }
+                        }
+                        Err(err) => println!(
+                            "Unable to generate LCD message from string {:?} : {}",
+                            lcd_string, err
+                        ),
+                    }
                     int_signal_arc.lock().unwrap().update_lcd_string = false;
                 }
 
                 if int_signal_arc.lock().unwrap().update_vpot {
+                    let vpots = device_params.lock().unwrap().get_vpots().clone();
+                    let mut raw_midi_mesg = vec![];
+
+                    for vpot in vpots {
+                        match pan_knob_gen(vpot[1], vpot[0], vpot[2]) {
+                            Ok(raw_midi) => raw_midi_mesg.push(raw_midi),
+                            Err(err) => {
+                                println!("Unable to create Pan Knob midi message : {}", err)
+                            }
+                        }
+                    }
                     int_signal_arc.lock().unwrap().update_vpot = false;
                 }
 
                 if int_signal_arc.lock().unwrap().update_faders {
+                    let faders = device_params.lock().unwrap().get_faders().clone();
+                    let mut raw_midi_mesg = vec![];
+
+                    for fader in faders {
+                        let pb_idx = fader.0;
+                        let pb_value = fader.1;
+                        let pb_num = 0xE0 + pb_idx;
+
+                        let (lsb, msb) = convert_value_to_lsb_msb(pb_value);
+
+                        let midi_mesg = vec![pb_num, lsb, msb];
+
+                        match make_raw_midi_mesg(&0, &midi_mesg) {
+                            Ok(raw_midi) => {
+                                raw_midi_mesg.push(raw_midi);
+                            }
+                            Err(err) => {
+                                println!("Unable to generate fader mesg : {}", err);
+                            }
+                        };
+                    }
+
+                    for raw_midi in raw_midi_mesg {
+                        conn_out.send(raw_midi.data()).unwrap();
+                    }
+
                     int_signal_arc.lock().unwrap().update_faders = false;
                 }
 
                 if int_signal_arc.lock().unwrap().update_chan_btns {
+                    let chan_btns = device_params.lock().unwrap().get_chan_btns().clone();
+                    let mut raw_midi_mesg = vec![];
+
+                    for chan_btn in chan_btns {
+                        let channel = chan_btn.0;
+                        let btn_num = chan_btn.1;
+                        let btn_status = match chan_btn.2 {
+                            true => 0xF7,
+                            false => 0x00,
+                        };
+
+                        let note: u8 = btn_num * 8 + channel;
+
+                        if (0x00..=0x1F).contains(&note) {
+                            match send_note_bang(note, btn_status) {
+                                Ok(bang_raw_midi) => {
+                                    for raw_midi in bang_raw_midi {
+                                        raw_midi_mesg.push(raw_midi)
+                                    }
+                                }
+                                Err(err) => {
+                                    println!("Unable to generate note channel bang mesg : {}", err)
+                                }
+                            }
+                        } else {
+                            println!("Channel button not in range (0x00..=0x1F) : {:X}", note);
+                        }
+                    }
+
+                    for raw_midi in raw_midi_mesg {
+                        conn_out.send(raw_midi.data()).unwrap();
+                    }
+
                     int_signal_arc.lock().unwrap().update_chan_btns = false;
                 }
 
                 if int_signal_arc.lock().unwrap().update_fps {
+                    fps = *device_params.lock().unwrap().get_fps();
+                    duration = 1000 / fps;
                     int_signal_arc.lock().unwrap().update_fps = false;
                 }
 
