@@ -28,6 +28,8 @@ class MI_BL_Ingredient(PropertyGroup):
 
 
 class MI_BL_Recipe(PropertyGroup):
+    int_update: BoolProperty()
+    ext_update: BoolProperty()
     ingredients: CollectionProperty(
         type=MI_BL_Ingredient
     )
@@ -72,7 +74,17 @@ class MI_BL_TimestampParams(PropertyGroup):
     frames: IntProperty()
 
 
+class MI_BL_SysParamsUpdate(PropertyGroup):
+    lcd_vec_update: BoolProperty()
+    lcd_mesg_update: BoolProperty()
+    vpot_vec_update: BoolProperty()
+    faders_update: BoolProperty()
+    user_btns_update: BoolProperty()
+
+
 class MI_BL_SysParams(PropertyGroup):
+    int_update: BoolProperty()
+    ext_update: BoolProperty()
     timestamp: PointerProperty(
         type=MI_BL_TimestampParams
     )
@@ -90,6 +102,9 @@ class MI_BL_SysParams(PropertyGroup):
         type=MI_BL_ChanBtnParams
     )
     fps: IntProperty()
+    updates: PointerProperty(
+        type=MI_BL_SysParamsUpdate
+    )
 
     def clean_lcd_vec(self):
         clean_coll(self.lcd_vec)
@@ -134,16 +149,7 @@ class PropsMiBl(PropertyGroup):
         name="mi_recipe",
         type=MI_BL_Recipe
     )
-    mi_init: PointerProperty(
+    mi_sys_params: PointerProperty(
+        name="mi_sys_params",
         type=MI_BL_SysParams
-    )
-    mi_recipe_need_update: BoolProperty(
-        name="mi_recipe_need_update",
-        description="Send recipe update signal to server",
-        default=False
-    )
-    mi_recipe_footprint: StringProperty(
-        name="mi_recipe_footprint",
-        description="The hash value of the recipe",
-        default=""
     )

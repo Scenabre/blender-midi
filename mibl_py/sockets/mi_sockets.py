@@ -276,23 +276,6 @@ class SOCKET_MI_BL_SystemParamList(NodeSocket):
         return (0.0, 1.0, 0.0, 1.0)
 
 
-class SOCKET_INT_MI_BL_SystemParamList(NodeTreeInterfaceSocket):
-    bl_socket_idname = SOCKET_SYS_TYPE + 'List'
-
-    sys_list_default_value: CollectionProperty(
-        type=MI_BL_SysParams
-    )
-
-    def draw(self, context, layout):
-        layout.prop(self, "sys_list_default_value")
-
-    def init_socket(self, node, socket, data_path):
-        socket.mibl_system_float = self.default_value
-
-    def from_socket(self, node, socket):
-        self.default_value = socket.mibl_system_float
-
-
 class SOCKET_MI_BL_SystemParam(NodeSocket):
     """MiBl Midi System socket"""
     bl_idname = SOCKET_SYS_TYPE
