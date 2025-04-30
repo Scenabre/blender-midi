@@ -1,6 +1,10 @@
-use crate::midi_server::container::{DeviceState, RawMidi, MAX_MIDI_MSG_SIZE};
+use crate::midi_server::container::{
+    DeviceState, Event, RawMidi, Recipe, SIGflag, MAX_MIDI_MSG_SIZE,
+};
 use crate::midi_server::math_utils::split_digits;
+use crate::midi_server::midi_event::craft_recipe;
 use crate::midi_server::sys_event::SYS_EVENT_ARRAY;
+use std::sync::{Arc, Mutex};
 
 //use crate::midi_process_mesg::MidiMesg;
 //
@@ -548,4 +552,150 @@ pub fn reset_mc_device() -> Result<Vec<RawMidi>, String> {
     }
 
     Ok(raw_midi_mesg)
+}
+
+pub fn signal_handling(
+    int_signal: &Arc<Mutex<SIGflag>>,
+    triggers_events: &Arc<Mutex<Option<Vec<Event>>>>,
+    recipe: &Arc<Mutex<Recipe>>,
+    device_params: &Arc<Mutex<DeviceState>>,
+    debug: bool,
+) -> Option<Vec<RawMidi>> {
+    let mut int_signal_arc = int_signal.lock().unwrap();
+    let mut triggers_events_arc = triggers_events.lock().unwrap();
+    let recipe_arc = recipe.lock().unwrap();
+    let device_params_arc = device_params.lock().unwrap();
+
+    let mut raw_midi_mesg: Vec<RawMidi> = vec![];
+
+    if int_signal_arc.update_recipe {
+        if debug {
+            println!("Updating recipe in loop");
+        }
+        let recipe = recipe_arc.clone();
+        let mut opt_recipe = None;
+        let use_sys_event = int_signal_arc.use_sys_event;
+
+        if !recipe.is_empty() {
+            opt_recipe = Some(&recipe);
+        }
+
+        *triggers_events_arc = match craft_recipe(&use_sys_event, opt_recipe) {
+            Ok(events) => {
+                println!("Triggers build in loop");
+                events
+            }
+            Err(err) => panic!("Unable to create the trigger table ! {}", err),
+        };
+
+        int_signal_arc.update_recipe = false;
+    }
+
+    if int_signal_arc.update_lcd_vec {
+        let lcd_vec = device_params_arc.get_lcd_vec().clone();
+
+        if let Some(lcd_vec) = lcd_vec {
+            for lcd_def in lcd_vec {
+                let lcd_num = lcd_def.0;
+                let line_num = lcd_def.1;
+                let lcd_mesg = lcd_def.2.clone();
+                match make_lcd_mesg(0, lcd_num, line_num, lcd_mesg) {
+                    Ok(raw_midi) => raw_midi_mesg.push(raw_midi),
+                    Err(err) => println!("Unable to generate LCD message {:?} : {}", lcd_def, err),
+                };
+            }
+        }
+
+        int_signal_arc.update_lcd_vec = false;
+    }
+
+    if int_signal_arc.update_lcd_string {
+        let lcd_string = device_params_arc.get_lcd_string().clone();
+
+        match gen_lcd_string(0, lcd_string.clone()) {
+            Ok(lcd_raw_midi) => {
+                raw_midi_mesg.extend(lcd_raw_midi);
+            }
+            Err(err) => println!(
+                "Unable to generate LCD message from string {:?} : {}",
+                lcd_string, err
+            ),
+        }
+        int_signal_arc.update_lcd_string = false;
+    }
+
+    if int_signal_arc.update_vpot {
+        let vpots = device_params_arc.get_vpots().clone();
+
+        for vpot in vpots {
+            match pan_knob_gen(vpot[1], vpot[0], vpot[2]) {
+                Ok(raw_midi) => raw_midi_mesg.push(raw_midi),
+                Err(err) => {
+                    println!("Unable to create Pan Knob midi message : {}", err)
+                }
+            }
+        }
+        int_signal_arc.update_vpot = false;
+    }
+
+    if int_signal_arc.update_faders {
+        let faders = device_params_arc.get_faders().clone();
+
+        for fader in faders {
+            let pb_idx = fader.0;
+            let pb_value = fader.1;
+            let pb_num = 0xE0 + pb_idx;
+
+            let (lsb, msb) = convert_value_to_lsb_msb(pb_value);
+
+            let midi_mesg = vec![pb_num, lsb, msb];
+
+            match make_raw_midi_mesg(&0, &midi_mesg) {
+                Ok(raw_midi) => {
+                    raw_midi_mesg.push(raw_midi);
+                }
+                Err(err) => {
+                    println!("Unable to generate fader mesg : {}", err);
+                }
+            };
+        }
+
+        int_signal_arc.update_faders = false;
+    }
+
+    if int_signal_arc.update_chan_btns {
+        let chan_btns = device_params_arc.get_chan_btns().clone();
+
+        for chan_btn in chan_btns {
+            let channel = chan_btn.0;
+            let btn_num = chan_btn.1;
+            let btn_status = match chan_btn.2 {
+                true => 0xF7,
+                false => 0x00,
+            };
+
+            let note: u8 = btn_num * 8 + channel;
+
+            if (0x00..=0x1F).contains(&note) {
+                match send_note_bang(note, btn_status) {
+                    Ok(bang_raw_midi) => {
+                        raw_midi_mesg.extend(bang_raw_midi);
+                    }
+                    Err(err) => {
+                        println!("Unable to generate note channel bang mesg : {}", err)
+                    }
+                }
+            } else {
+                println!("Channel button not in range (0x00..=0x1F) : {:X}", note);
+            }
+        }
+
+        int_signal_arc.update_chan_btns = false;
+    }
+
+    if !raw_midi_mesg.is_empty() {
+        return Some(raw_midi_mesg);
+    }
+
+    None
 }

@@ -1,7 +1,5 @@
 use std::vec;
 
-use rand::seq::IndexedRandom;
-
 use crate::midi_server::container::{Event, MidiMesg, Recipe};
 use crate::midi_server::sys_event::SYS_EVENT_ARRAY;
 use crate::node_utils::sys_event::convert_half;
