@@ -11,17 +11,17 @@ addon_id=$(grep -m 1 id blender_manifest.toml | cut -d '=' -f 2 | tr -d '"' | tr
 addon_version=$(grep -m 1 version blender_manifest.toml | cut -d '=' -f 2 | tr -d '"' | tr -d ' ')
 
 if [ $# -eq 2 ] && [ $2 = "-f" ]; then
-  source /home/lynerlok/.pyenv/versions/py_env/bin/activate
+  source /home/lynerlok/.pyenv/versions/py_env_3.13/bin/activate
   cd ../mibl_rs
   maturin build
-  cp target/wheels/mibllib-0.1.0-cp311-cp311-manylinux_2_34_x86_64.whl ../mibl_py/wheels/
+  cp target/wheels/mibllib-0.1.0-cp313-cp313-manylinux_2_38_x86_64.whl ../mibl_py/wheels/
   deactivate
   cd ../mibl_py
 fi
 
 echo "Removed already installed extension"
-$1/blender --command extension remove $addon_id
+$1/blender-launcher --command extension remove $addon_id
 echo "Building new extension"
-$1/blender --command extension build
+$1/blender-launcher --command extension build
 echo "Installing new extension"
-$1/blender --command extension install-file -r user_default $addon_id-$addon_version.zip
+$1/blender-launcher --command extension install-file -r user_default $addon_id-$addon_version.zip
