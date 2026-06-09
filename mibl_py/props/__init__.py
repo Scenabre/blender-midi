@@ -4,7 +4,7 @@ import inspect
 from bpy.utils import register_class, unregister_class
 from bpy.types import Scene
 from bpy.props import PointerProperty
-from .mi_props import MI_BL_Ingredient, MI_BL_Recipe, MI_BL_TriggerProp, PropsMiBl, MI_BL_VecOut, MI_BL_LcdParams, MI_BL_VPotParams, MI_BL_FaderParams, MI_BL_ChanBtnParams, MI_BL_TimestampParams, MI_BL_SysParams
+from .mi_props import MI_BL_Ingredient, MI_BL_Recipe, MI_BL_TriggerProp, PropsMiBl, MI_BL_VecOut, MI_BL_LcdParams, MI_BL_VPotParams, MI_BL_FaderParams, MI_BL_ChanBtnParams, MI_BL_TimestampParams, MI_BL_SysParamsUpdate, MI_BL_SysParams
 
 
 def query_all_classes():
@@ -35,6 +35,7 @@ def register():
     register_class(MI_BL_FaderParams)
     register_class(MI_BL_ChanBtnParams)
     register_class(MI_BL_TimestampParams)
+    register_class(MI_BL_SysParamsUpdate)
     register_class(MI_BL_SysParams)
     register_class(PropsMiBl)
 
@@ -50,6 +51,7 @@ def unregister():
     unregister_class(MI_BL_Ingredient)
     unregister_class(MI_BL_VecOut)
     unregister_class(MI_BL_SysParams)
+    unregister_class(MI_BL_SysParamsUpdate)
     unregister_class(MI_BL_TimestampParams)
     unregister_class(MI_BL_ChanBtnParams)
     unregister_class(MI_BL_FaderParams)
