@@ -29,20 +29,9 @@ def register():
     for idx, cls in enumerate(classes):
         print("Register class : ", cls.__name__)
         register_class(cls)
-        if cls.__name__[:4] == "NODE":
-            print("Subscribe RNA for : ", cls.__name__)
-            bpy.msgbus.subscribe_rna(
-                key=cls,
-                owner='mibl',
-                args=(),
-                notify=execute_active_node_tree,
-                options={"PERSISTENT", }
-            )
-
 
 def unregister():
     classes = query_all_classes()
     for cls in reversed(classes):
         print("Unregister class : ", cls.__name__)
-        bpy.msgbus.clear_by_owner('mibl')
         unregister_class(cls)
