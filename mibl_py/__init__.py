@@ -15,41 +15,6 @@ import faulthandler
 from bpy.app import timers
 from bpy.types import AddonPreferences
 
-# class ModuleAPrefs(AddonPreferences):
-#     bl_idname = __name__
-#     # Put your module A preferences here
-
-
-def install_mibllib():
-    if not check_if_exists("mibllib"):
-        whl_name = "mibllib-0.1.0-cp311-cp311-manylinux_2_34_x86_64.whl"
-        whl_path = os.path.join(os.path.dirname(__file__), "wheels", whl_name)
-
-        pip_cmd = [sys.executable,
-                   "-m",
-                   "pip",
-                   "install",
-                   whl_path
-                   ]
-
-        subprocess.check_call(pip_cmd)
-
-
-def check_if_exists(name) -> bool:
-    try:
-        importlib.util.find_spec(name)
-    except Exception as e:
-        print("Exception occured when searching for module {} : {}"
-              .format(name, e))
-        raise e
-    else:
-        if importlib.util.find_spec(name) is None:
-            print("Module {} not found".format(name))
-            return False
-        print("MiBl python module already installed")
-        return True
-
-
 def query_all_modules(attr):
     current_dir = os.path.dirname(__file__)
     attr_fn = {}
@@ -64,10 +29,6 @@ def query_all_modules(attr):
 
     return attr_fn
 
-# def menu_func(self, context):
-#     self.layout.operator(my_custom_node.MyCustomTestNode.bl_idname)
-
-
 def register():
     faulthandler.enable(all_threads=True)
     global update_func
@@ -75,8 +36,10 @@ def register():
     print("----- Register plugin MiBL -----")
     print(datetime.datetime.now())
     print("-----")
-    install_mibllib()  # Test all the code then uncomment !
+
     attr_fn = query_all_modules('register')
+
+    attr_fn['prefs']()
 
     attr_fn['node_tree']()
     attr_fn['ops']()
@@ -102,6 +65,8 @@ def unregister():
     attr_fn['ops']()
     attr_fn['menu_ui']()
     attr_fn['node_tree']()
+
+    attr_fn['prefs']()
 
     faulthandler.disable()
 
