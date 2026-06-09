@@ -17,7 +17,7 @@ mibl_rs = None
 mibl_thread = None
 count_ev = {}
 update_wait = 0
-update_interval = 1
+update_interval = 0.01
 timestamp_mode = 0
 frame_drop = False
 first_press = True
@@ -25,10 +25,11 @@ first_press = True
 
 def parse_sys(mibl_props, mibl_rs):
     updates = mibl_props.mi_sys_params.updates
-    mi_sys_params = mibl_rs.mi_sys_params
+    mi_sys_params = mibl_props.mi_sys_params
     rs_update = []
 
     if updates.lcd_vec_update:
+        print("Update LCD in operator")
         mibl_rs.set_lcd_vec(mi_sys_params.lcd_vec)
         rs_update.extend(0)
     if updates.lcd_mesg_update:
@@ -63,7 +64,7 @@ def parse_recipe(mibl_props):
 
     mibl_rs.set_recipe(ingredients)
     mibl_rs.set_recipe_need_update(True)
-    mibl_props.mi_recipe_need_update = False
+    mibl_props.mi_recipe.int_update = False
 
 
 def parse_signals(context, mibl_props, sys_signals, timestamp_mode, curr_frame, frame_drop):
@@ -172,12 +173,12 @@ def update_midi_value(context):
     mibl_rs.set_timestamp(hours, minutes, seconds, frames)
 
     if mibl_props.mi_sys_params.ext_update:
-        parse_sys(mibl_props)
+        parse_sys(mibl_props, mibl_rs)
         mibl_props.mi_sys_params.ext_update = False
 
     if mibl_props.mi_recipe.ext_update:
         parse_recipe(mibl_props)
-        mibl_props.mi_sys_params.ext_update = False
+        mibl_props.mi_recipe.ext_update = False
 
     if len(sys_signals) > 0:
         parse_signals(context,
@@ -210,12 +211,15 @@ class MI_BL_OT_update_server_state(Operator):
         global update_interval
         global first_press
 
+        debug = context.preferences.addons['bl_ext.user_default.midi_interactive_bl'].preferences.debug
+
         scene = context.scene
         if not scene.mibl.mi_run_server:
 
             count_ev = {}
             fps = context.scene.render.fps
             update_interval = 1/fps
+            first_press = False
 
             if update_func is None:
                 update_func = functools.partial(update_midi_value, context)
@@ -225,13 +229,13 @@ class MI_BL_OT_update_server_state(Operator):
 
             mibl_rs.set_close_signal(False)
             mibl_rs.set_sysevent(True)
-            mibl_thread = threading.Thread(target=mibl_rs.mi_start_server_allow_thread, args=(True,))
+            mibl_thread = threading.Thread(target=mibl_rs.mi_start_server_allow_thread, args=(debug,))
 
             scene.mibl.mi_run_server = True
 
             timers.register(
                 update_func,
-                first_interval=1.0
+                first_interval=update_interval
             )
 
             mibl_thread.start()
@@ -241,6 +245,9 @@ class MI_BL_OT_update_server_state(Operator):
             scene.mibl.mi_run_server = False
 
             if first_press:
+                if debug :
+                    print("Server doesn't already running")
+                self.report({'INFO'}, "Server doesn't already running")
                 first_press = False
             else:
                 if timers.is_registered(update_func):
@@ -257,6 +264,7 @@ class MI_BL_OT_update_server_state(Operator):
                 count_ev = {}
 
                 self.report({'INFO'}, 'MIDI Server Stopped')
-                print("MIDI Server Stopped")
+                if debug :
+                    print("MIDI Server Stopped")
 
         return {'FINISHED'}
