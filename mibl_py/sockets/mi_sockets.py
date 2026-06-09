@@ -2,11 +2,13 @@ from bpy.props import FloatProperty, FloatVectorProperty, CollectionProperty, Po
 from bpy.types import NodeSocket, NodeTreeInterfaceSocket
 from .. props.mi_props import MI_BL_TriggerProp, MI_BL_Ingredient, MI_BL_Recipe, MI_BL_SysParams, MI_BL_LcdParams, MI_BL_VPotParams, clean_coll, MIDI_IN_SIZE, MIDI_OUT_SIZE
 from .. utils.mibl_utils import fill_array
+# from .. sockets.mi_sockets import SOCKET_SYS_LCD_TYPE, SOCKET_SYS_VPOT_TYPE
 
 SOCKET_ING_TYPE = 'SOCKET_MI_BL_MidiIngredient'
 SOCKET_RECIPE_TYPE = 'SOCKET_MI_BL_MidiRecipe'
 SOCKET_TRIGGER_TYPE = 'SOCKET_MI_BL_MidiTrigger'
 SOCKET_SYS_TYPE = 'SOCKET_MI_BL_SystemParam'
+SOCKET_ABS_SYS_TYPE = 'SOCKET_MI_BL_AbstractSystemParam'
 SOCKET_SYS_LCD_TYPE = 'SOCKET_MI_BL_LcdSystemParam'
 SOCKET_SYS_VPOT_TYPE = 'SOCKET_MI_BL_VPotSystemParam'
 SOCKET_ATTR_TYPE = 'SOCKET_MI_BL_AttrLink'
@@ -85,16 +87,22 @@ class SOCKET_MI_BL_MidiRecipe(NodeSocket):
 
     def set_value(self, ingredients):
         self.mibl_recipe.clean_ingredients()
-        for ingredient in ingredients:
-            new_ingredient = self.mibl_recipe.ingredients.add()
-            new_ingredient.ing_name = ingredient.ing_name
-            new_ingredient.midi_in = ingredient.midi_in
 
-            for midi_arr in new_ingredient.midi_out:
-                new_midi_out = new_ingredient.midi_out.add()
-                new_midi_out.vec_out = midi_arr
+        if ingredients is not None:
+            self.mibl_recipe.int_update = True
 
-            new_ingredient.opt_val = ingredient.opt_val
+            for ingredient in ingredients:
+                new_ingredient = self.mibl_recipe.ingredients.add()
+                new_ingredient.ing_name = ingredient.ing_name
+                new_ingredient.midi_in = ingredient.midi_in
+
+                for midi_arr in new_ingredient.midi_out:
+                    new_midi_out = new_ingredient.midi_out.add()
+                    new_midi_out.vec_out = midi_arr
+
+                new_ingredient.opt_val = ingredient.opt_val
+        else:
+            self.mibl_recipe.int_update = False
 
     def draw(self, context, layout, node, text):
         layout.label(text=text)
@@ -250,23 +258,20 @@ class SOCKET_INT_MI_BL_VPotSystemParam(NodeTreeInterfaceSocket):
         self.sys_default_value = socket.mibl_system_params
 
 
-class SOCKET_MI_BL_SystemParamList(NodeSocket):
+class SOCKET_MI_BL_AbstractSystemParam(NodeSocket):
     """Custom Midi System socket"""
-    bl_idname = SOCKET_SYS_TYPE + 'List'
-    bl_label = 'mi_bl_socket_midi_system_list'
+    bl_idname = SOCKET_ABS_SYS_TYPE
+    bl_label = 'mi_bl_socket_midi_abstract_system_param'
 
-    mibl_system_params_list: CollectionProperty(
+    mibl_system_param: PointerProperty(
         type=MI_BL_SysParams
     )
 
     def get_value(self):
-        return self.mibl_system_params_list
+        return self.mibl_system_param
 
-    def set_value(self, sys_vec):
-        clean_coll(self.mibl_system_params_list)
-        for param in sys_vec:
-            new_param = self.mibl_system_params_list.add()
-            new_param = param
+    def set_value(self, sys_param):
+        self.mibl_system_param = sys_param
 
     def draw(self, context, layout, node, text):
         layout.label(text=text)
@@ -280,6 +285,52 @@ class SOCKET_MI_BL_SystemParam(NodeSocket):
     """MiBl Midi System socket"""
     bl_idname = SOCKET_SYS_TYPE
     bl_label = 'mi_bl_socket_midi_system'
+
+    mibl_system_param: PointerProperty(
+        type=MI_BL_SysParams
+    )
+
+    def get_value(self):
+        return self.mibl_system_param
+
+    def set_value(self, param_list):
+        self.mibl_system_param.clean_all()
+        for (value, name) in param_list:
+            if name == SOCKET_SYS_LCD_TYPE:
+                lcd = value
+                new_lcd = self.mibl_system_param.lcd_vec.add()
+                new_lcd.lcd_num = lcd.lcd_num
+                new_lcd.line_num = lcd.lcd_num
+                new_lcd.string = lcd.string
+                self.mibl_system_param.updates.lcd_vec_update = True
+                self.mibl_system_param.int_update = True
+            elif name == SOCKET_SYS_VPOT_TYPE:
+                vpot = value
+                new_vpot = self.mibl_system_param.vpot_vec.add()
+                new_vpot.vpot_idx = vpot.vpot_idx
+                new_vpot.vpot_mode = vpot.vpot_mode
+                new_vpot.vpot_val = vpot.vpot_val
+                self.mibl_system_param.updates.vpot_vec_update = True
+                self.mibl_system_param.int_update = True
+
+            # if updates.lcd_mesg_update:
+            #     self.mibl_system_param.lcd_mesg = sys_param.lcd_mesg
+            #
+            # if updates.faders_update:
+            #     for fader in sys_param.faders:
+            #         new_fader = self.mibl_system_param.faders.add()
+            #         new_fader.fader_num = fader.fader_num
+            #         new_fader.fader_value = fader.fader_value
+            #
+            # if updates.user_btns_update:
+            #     for btn in sys_param.user_btns:
+            #         new_btn = self.mibl_system_param.user_btns.add()
+            #         new_btn.chan_num = btn.chan_num
+            #         new_btn.btn_num = btn.btn_num
+            #         new_btn.btn_status = btn.btn_status
+
+            # self.mibl_system_param.ext_update = sys_param.ext_update
+            # self.mibl_system_param.int_update = sys_param.int_update
 
     def draw(self, context, layout, node, text):
         layout.label(text=text)
