@@ -5,3 +5,5 @@ Cargo.lock
 /mibl_py/*.zip
 Test.blend*
 .ruff_cache
+*.pdf
+*.blend1
