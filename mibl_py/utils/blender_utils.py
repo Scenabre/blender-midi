@@ -92,3 +92,19 @@ def set_prop_layout(context, tab_num):
     }
     area = get_area(context, 'PROPERTIES')
     area.spaces[0].context = prop_name[tab_num]
+
+def update_all_inputs(self):
+    for input in self.inputs:
+        if input.is_linked:
+            for link in input.links:
+                link.from_node.execute()
+
+def update_all_outputs(self):
+    for output in self.outputs:
+        if output.is_linked:
+            for link in output.links:
+                link.to_node.execute()
+
+def update_prop(self,context):
+    self.execute()
+
