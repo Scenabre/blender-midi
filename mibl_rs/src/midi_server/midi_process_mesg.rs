@@ -66,6 +66,8 @@ pub fn process_midi_mesg(
         println!("Raw MIDI : {:04X?} {:?}", event_data, event_data);
     }
 
+    let mut is_fader: bool = false;
+
     let (midi_mesg_to_send, debug_midi_mesg): (TriggerResult, Option<MidiMesg>) = match triggers {
         Some(triggers) => {
             let mut ext_trigger_result: Option<Vec<ExtTrigger>> = None;
@@ -84,7 +86,14 @@ pub fn process_midi_mesg(
                     note_bang = true;
                 }
 
-                if note_bang || event_data == trigger_mesg_in {
+                if trigger_mesg_in.len() >= 3 && clean_cmd == 0xE0 && cmd == trigger_mesg_in[0] {
+                    if debug {
+                        println!("Fader detected !");
+                    }
+                    is_fader = true;
+                }
+
+                if note_bang || event_data == trigger_mesg_in || is_fader {
                     if debug {
                         println!(
                             "Event triggered {} : {}",
@@ -209,6 +218,12 @@ pub fn process_midi_mesg(
                                 let tmp_midi_mesg =
                                     process_pitch_bend((event_data[1], event_data[2]));
                                 val_out = Some(tmp_midi_mesg.value);
+
+                                println!(
+                                    "Fader ({:?}) value : {:?}",
+                                    event_data[0] ^ 0xE0,
+                                    val_out
+                                );
 
                                 if debug {
                                     midi_mesg = Some(tmp_midi_mesg);
