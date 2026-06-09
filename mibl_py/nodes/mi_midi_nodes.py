@@ -4,6 +4,7 @@ from bpy.props import EnumProperty, FloatProperty, IntProperty, BoolProperty
 from .. node_tree.mi_node_tree import MI_BL_Node
 from .. utils.mibl_utils import generate_midi_note_bang, get_midi_note_num
 from .. sockets.mi_sockets import SOCKET_ING_TYPE, SOCKET_ATTR_TYPE, SOCKET_RECIPE_TYPE, SOCKET_TRIGGER_TYPE
+from .. node_tree.mi_update import execute_active_node_tree
 
 
 class NODE_MI_BL_MIDI_Trigger_Note(Node, MI_BL_Node):
@@ -65,6 +66,7 @@ class NODE_MI_BL_MIDI_Trigger_Note(Node, MI_BL_Node):
         layout.prop(self, "vel")
 
     def execute(self):
+        self.set_update_state(True)
         trigger_name = f"{self.bl_rna.properties['note_name'].enum_items.get(self.note_name).name}{self.octave_num} CLICK"
         midi_note = get_midi_note_num(int(self.note_name), self.octave_num)
         midi_in = generate_midi_note_bang(midi_note, self.vel)
@@ -126,6 +128,7 @@ class NODE_MI_BL_MIDI_Trigger_SpecialNote(Node, MI_BL_Node):
             layout.prop(self, "btn_state")
 
     def execute(self):
+        self.set_update_state(True)
         note = 0x20
         midi_in = []
         trigger_name = ""
@@ -167,15 +170,6 @@ class NODE_MI_BL_MIDI_Trigger_Fader(Node, MI_BL_Node):
         default=1
     )
 
-    fader_value: FloatProperty(
-        name='Fader Value',
-        min=0.0,
-        max=1.0,
-        soft_min=0.0,
-        soft_max=1.0,
-        default=0.5
-    )
-
     def init(self, context):
         self.outputs.new(SOCKET_ING_TYPE, "Trigger")
 
@@ -184,14 +178,13 @@ class NODE_MI_BL_MIDI_Trigger_Fader(Node, MI_BL_Node):
         row = layout.row()
 
         layout.prop(self, "fader_num")
-        layout.prop(self, "fader_value")
 
     def execute(self):
+        self.set_update_state(True)
         midi_fader_num = 0xE0 + (self.fader_num - 1)
-        midi_fader_value = int(round(self.fader_value * 127))
         trigger_name = f"FADER #{str(self.fader_num)} SLIDE"
         self.outputs[0].set_name(trigger_name)
-        self.outputs[0].set_value([midi_fader_num, 0x00, midi_fader_value], [], 0.0)
+        self.outputs[0].set_value([midi_fader_num, 0x00, 0x00], [], 0.0)
 
 
 class NODE_MI_BL_MIDI_Trigger_Pan(Node, MI_BL_Node):
@@ -252,6 +245,7 @@ class NODE_MI_BL_MIDI_Trigger_Pan(Node, MI_BL_Node):
         layout.prop(self, "pan_value")
 
     def execute(self):
+        self.set_update_state(True)
         midi_pan_num = 0x10 + (self.pan_num - 1)
         midi_pan_value = 0x01
 
@@ -270,6 +264,10 @@ class NODE_MI_BL_MIDI_Trigger_User_Buttons(Node, MI_BL_Node):
     bl_label = 'MI User Button Trigger'
 
     _is_trigger_node = True
+
+    def prop_changed(self, context):
+        self.execute()
+        execute_active_node_tree()
 
     def set_btn_enum(self, context):
         items = ()
@@ -300,6 +298,7 @@ class NODE_MI_BL_MIDI_Trigger_User_Buttons(Node, MI_BL_Node):
             ('7', "Channel #8", ""),
             ('8', "Main", ""),
         ),
+        update=prop_changed,
         default='0'
     )
 
@@ -329,6 +328,7 @@ class NODE_MI_BL_MIDI_Trigger_User_Buttons(Node, MI_BL_Node):
         layout.prop(self, "btn_name")
 
     def execute(self):
+        self.set_update_state(True)
         note = 0x00
 
         match self.btn_name:

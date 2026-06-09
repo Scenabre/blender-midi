@@ -36,10 +36,15 @@ class NODE_MI_BL_group_input(Node, MI_BL_Node):
                     self._triggers.remove(trigger)
 
     def create_outputs(self, trigger_list):
+        _socket_names = []
+
+        for output in self.outputs:
+            _socket_names.append(output.name)
+
         for trigger in trigger_list:
             socket_name = trigger.ing_name
             if socket_name != '':
-                if socket_name not in self._triggers:
+                if socket_name not in _socket_names and socket_name not in self._triggers:
                     self.outputs.new(
                         'NodeSocketFloat',
                         socket_name,

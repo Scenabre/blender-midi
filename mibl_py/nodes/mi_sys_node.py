@@ -42,6 +42,7 @@ class NODE_MI_BL_MIDI_LCD(Node, MI_BL_Node):
         layout.prop(self, "line_num")
 
     def execute(self):
+        self.set_update_state(True)
         self.outputs[0].set_value(self.lcd_num, self.line_num, self.inputs[0].default_value)
 
 
@@ -80,4 +81,5 @@ class NODE_MI_BL_MIDI_VPOT(Node, MI_BL_Node):
         layout.prop(self, "pan_mode")
 
     def execute(self):
+        self.set_update_state(True)
         self.outputs[0].set_value(self.pan_num, self.pan_mode, 0)

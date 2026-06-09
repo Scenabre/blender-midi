@@ -66,7 +66,13 @@ class NODE_MI_BL_set_attr(Node, MI_BL_Node):
 
         for input in self.inputs:
             if input.is_linked:
-                input_vals.append(input.links[0].from_socket.default_value)
+                # Trigger group input update if the node is linked
+                for link in input.links:
+                    if link.from_node.bl_idname == 'NODE_MI_BL_group_input':
+                        link.from_node.execute()
+
+                # Get value from input node anyway
+                input_vals.append(link.from_socket.default_value)
             else:
                 input_vals.append(input.default_value)
 
