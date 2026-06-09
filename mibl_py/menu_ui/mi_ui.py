@@ -42,6 +42,7 @@ node_categories = [
     ]),
     MI_BL_NodeCategory('GEOSHARED', "Geo Shared", items=[
         NodeItem("NODE_MI_BL_MATH_add"),
+        NodeItem("NODE_MI_BL_MATH_multiply"),
         NodeItem("MidiInteractiveStoreNamedAttribute"),
     ]),
     MI_BL_NodeCategory('TEST', "Testing", items=[
