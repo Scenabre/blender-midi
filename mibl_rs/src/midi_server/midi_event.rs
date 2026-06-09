@@ -276,6 +276,27 @@ pub fn craft_recipe(
 
                     None
                 }
+                0xE0..=0xE7 => {
+                    let name = format!("Fader #{}", (ev_in[0] ^ 0xE0));
+
+                    match Event::new(
+                        event_idx,
+                        name.clone(),
+                        ev_in.clone(),
+                        Some(evs_out.to_vec()),
+                        None,
+                        0,
+                        None,
+                        false,
+                        false,
+                    ) {
+                        Ok(ev) => Some(ev),
+                        Err(err) => {
+                            println!("Unable to create custom events : {}", err);
+                            None
+                        }
+                    }
+                }
                 _ => None,
             };
 
